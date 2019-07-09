@@ -19,7 +19,6 @@ def parse(string):
 
 
 def plot_ci(ax, molecule_name, intensity, upper_bound, lower_bound, mols_lags):
-    y_lim = (0, 2)
     x = np.arange(mols_lags + 1)
     ax.step(x, np.exp(intensity), where="mid")
     ax.fill_between(x, np.exp(lower_bound), np.exp(upper_bound), alpha=0.5, step="mid")

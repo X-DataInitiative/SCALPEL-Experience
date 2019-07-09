@@ -38,7 +38,7 @@ def plot_intensity(ax, intensity, mols_lags, gender):
     return ax
 
 
-def read_coeffs_data(dir_path, file) -> pd.DataFrame:
+def read_coeffs_data(dir_path, file):
     try:
         coeffs = pd.read_csv(os.path.join(dir_path, file), index_col=0)
     except FileNotFoundError:

@@ -1,17 +1,15 @@
 import json
 
 import matplotlib.pyplot as plt
+from math import ceil
 import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 
 plt.style.use(["ggplot"])
 
-from math import ceil
-
 
 def plot_intensity(ax, molecule_name, intensity, mols_lags):
-    y_lim = (0, 2)
     x = np.arange(mols_lags + 1)
     ax.step(x, np.exp(intensity), where="post")
     ax.hlines(1, 0, max(x))
