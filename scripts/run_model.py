@@ -1,4 +1,4 @@
-from tick.survival import ConvSCCS
+from tick.survival.sccs import StreamConvSCCS
 import pandas as pd
 import pickle
 import json
@@ -44,13 +44,14 @@ if __name__ == "__main__":
     y = [l.ravel() for l in labels]
     c = censoring.ravel()
 
-    model = ConvSCCS(
+    model = StreamConvSCCS(
         n_lags,
         penalized_features,
         max_iter=500,
-        verbose=True,
-        record_every=10,
+        verbose=False,
+        record_every=100,
         tol=1e-5,
+        threads=10
     )
 
     print(
@@ -70,7 +71,7 @@ if __name__ == "__main__":
 
     best_parameters = cv_track.find_best_params()
 
-    model_custom = ConvSCCS(
+    model_custom = StreamConvSCCS(
         n_lags,
         penalized_features,
         max_iter=500,
@@ -78,10 +79,15 @@ if __name__ == "__main__":
         C_group_l1=best_parameters["C_group_l1"],
         verbose=False,
         tol=1e-5,
+        threads=10
     )
     print("Launching Bootstrap")
     coeffs_custom, ci = model_custom.fit(
         X, y, c, confidence_intervals=True, n_samples_bootstrap=100
     )
+    print("Saving bootstrap results")
     pd.DataFrame(coeffs_custom).to_csv("coefficients_custom.csv")
     pd.DataFrame(ci).to_csv("ci.csv")
+    print("Dumping the Mapping to Json formats")
+    write_json(mapping, "mapping.json")
+
