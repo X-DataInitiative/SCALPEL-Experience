@@ -25,6 +25,11 @@ def read_metadata(file_path: str) -> Metadata:
         return Metadata.from_json(metadata_txt)
 
 
+def pickle_object(obj, path):
+    with open(path, "wb") as file:
+        pickle.dump(obj, file)
+
+
 def gender_filter(cohort: Cohort, gender: str) -> Cohort:
     if gender == "homme":
         return Cohort(
@@ -151,8 +156,8 @@ if __name__ == "__main__":
     mapping = loader.mappings[0]
     n_age_groups = loader.n_age_groups
 
-    pickle.dump(features, open("features", "wb"))
-    pickle.dump(labels, open("labels", "wb"))
-    pickle.dump(censoring, open("censoring", "wb"))
-    pickle.dump(mapping, open("mapping", "wb"))
-    pickle.dump(n_age_groups, open("age_groups", "wb"))
+    pickle_object(features, "features")
+    pickle_object(labels, "labels")
+    pickle_object(censoring, "censoring")
+    pickle_object(mapping, "mapping")
+    pickle_object(n_age_groups, "age_groups")
