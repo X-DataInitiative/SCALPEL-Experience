@@ -3,13 +3,27 @@ import json
 from itertools import product
 
 
-def generate_parameters(json_file_path, lag, bucket_size, gender_list=["homme", "femme", "all"], ):
-    for (path, gender, bucket, lag) in product(
-        json_file_path, gender_list, bucket_size, lag
+def generate_parameters(
+    json_file_path,
+    lag,
+    bucket_size,
+    gender_list=["homme", "femme", "all"],
+    sites=["all"],
+):
+    for (path, gender, bucket, lag, site) in product(
+        json_file_path, gender_list, bucket_size, lag, sites
     ):
-        directory_name = "gender={}-bucket-size={}-lag={}".format(gender, bucket, lag)
+        directory_name = "gender={}-bucket-size={}-lag={}-site={}".format(
+            gender, bucket, lag, site
+        )
         os.mkdir(directory_name)
-        parameters = {"path": path, "gender": gender, "bucket": bucket, "lag": lag}
+        parameters = {
+            "path": path,
+            "gender": gender,
+            "bucket": bucket,
+            "lag": lag,
+            "site": site,
+        }
         with open(
             os.path.join(directory_name, "parameters.json"), "w"
         ) as parameters_file:
@@ -17,11 +31,8 @@ def generate_parameters(json_file_path, lag, bucket_size, gender_list=["homme", 
 
 
 if __name__ == "__main__":
-    json_file_path = ["/home/sebiat/remote_repos/production_data.json"]
+    json_file_path = ["/home/sebiat/builds/serial_extraction/metadata_fall_2019_07_22_10_17_25.json"]
     bucket_size = [1]
-    lag = [30, 45, 60]
-    generate_parameters(json_file_path, lag, bucket_size)
-
-    bucket_size = [5]
-    lag = [6, 12, 18]
-    generate_parameters(json_file_path, lag, bucket_size)
+    lag = [30]
+    sites = ["ColDuFemur", "all", "Poignet"]
+    generate_parameters(json_file_path, lag, bucket_size, sites=sites)

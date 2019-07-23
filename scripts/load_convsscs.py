@@ -53,6 +53,24 @@ def gender_filter(cohort: Cohort, gender: str) -> Cohort:
         )
 
 
+def site_filter(outcomes: Cohort, site: str) -> Cohort:
+    if site == "all":
+        return outcomes
+    else:
+        events = outcomes.events.where(sf.col("groupID") == site)
+        if events.count() == 0:
+            raise ValueError(
+                "Le site {} n'existe pas dans la cohorte de fractures".format(site)
+            )
+        else:
+            return Cohort(
+                "Fractures on {}".format(site),
+                "Subjects with fractures on site {}".format(site),
+                events.select("patientID").distinct(),
+                events
+            )
+
+
 def read_parameters() -> dict:
     with open("parameters.json", "r") as parameters_file:
         parameters_json = "".join(parameters_file.readlines())
@@ -80,9 +98,7 @@ def keep_first_outcome(outcomes: Cohort) -> Cohort:
 
 
 def delete_prevalent(outcomes: Cohort, followup: Cohort) -> Cohort:
-    fup_events = rename_df_columns(
-        followup.events, prefix="fup_", keys=("patientID",)
-    )
+    fup_events = rename_df_columns(followup.events, prefix="fup_", keys=("patientID",))
     out_events = outcomes.events.join(fup_events, on="patientID")
 
     is_valid = (sf.col("start") >= sf.col("fup_start")) & (
@@ -115,6 +131,7 @@ if __name__ == "__main__":
     json_file_path = parameters["path"]
     gender = parameters["gender"]
     bucket_size = parameters["bucket"]
+    site = parameters["site"]
 
     logger.info("Reading metadata")
     md = read_metadata(json_file_path)
@@ -123,12 +140,11 @@ if __name__ == "__main__":
     base_cohort = gender_filter(md.get("filter_patients"), gender)
     followup = md.get("follow_up")
     exposures = md.get("exposures")
-    outcomes = md.get("fractures")
+    outcomes = site_filter(md.get("fractures"), site)
 
     logger.info("Cleaning cohorts")
     min_base = base_cohort.intersect_all([followup, exposures, outcomes])
     min_base.add_subject_information(base_cohort, "omit_all")
-    min_fup = followup.intersection(min_base)
     min_exp = exposures.intersection(min_base)
     min_out = outcomes.intersection(min_base)
 
@@ -148,7 +164,7 @@ if __name__ == "__main__":
         AGE_GROUPS,
         BUCKET_ROUNDING,
         RUN_CHECKS,
-        outcomes_split_column="category"
+        outcomes_split_column="category",
     )
     logger.info("Loading features")
     features, labels, censoring = loader.load()
