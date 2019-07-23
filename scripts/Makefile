@@ -11,6 +11,9 @@ parameters-generator:
 	mkdir ../expirements
 	cd ../expirements && python ../scripts/parameters_generator.py
 
+submit-transform:
+	cd ../expirements && zsh ../scripts/transform_submit.zsh
+
 submit-pyspark:
 	cd ../expirements && zsh ../scripts/submit_all.zsh
 
