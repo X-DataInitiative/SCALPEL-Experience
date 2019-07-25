@@ -30,6 +30,14 @@ def pickle_object(obj, path):
         pickle.dump(obj, file)
 
 
+def keep_elderly_filter(subjects: Cohort, keep_elderly: bool) -> Cohort:
+    if keep_elderly is True:
+        return subjects
+    else:
+        young_subjects = subjects.subjects.where(sf.col("age") < 85)
+        return Cohort("Young subjects", "Young subjects", young_subjects, None)
+
+
 def gender_filter(cohort: Cohort, gender: str) -> Cohort:
     if gender == "homme":
         return Cohort(
@@ -67,7 +75,7 @@ def site_filter(outcomes: Cohort, site: str) -> Cohort:
                 "Fractures on {}".format(site),
                 "Subjects with fractures on site {}".format(site),
                 events.select("patientID").distinct(),
-                events
+                events,
             )
 
 
@@ -112,16 +120,16 @@ def delete_prevalent(outcomes: Cohort, followup: Cohort) -> Cohort:
         "prevalent cases",
         "prevalent_cases",
         subjects=prevalent_events.select("patientID").distinct(),
-        events=prevalent_events.select(*min_out.events.columns),
+        events=prevalent_events.select(*outcomes.events.columns),
     )
-    return min_out.difference(prevalent_cases)
+    return outcomes.difference(prevalent_cases)
 
 
-if __name__ == "__main__":
+def main():
     sqlContext = get_spark_context()
+    quiet_spark_logger(sqlContext.sparkSession)
     sqlContext.sparkSession.conf.set("spark.sql.session.timeZone", "UTC")
     logger = get_logger()
-    quiet_spark_logger(sqlContext.sparkSession)
 
     valid_start = sf.col("start").between(STUDY_START, STUDY_END)
     valid_stop = sf.col("end").between(STUDY_START, STUDY_END)
@@ -132,12 +140,16 @@ if __name__ == "__main__":
     gender = parameters["gender"]
     bucket_size = parameters["bucket"]
     site = parameters["site"]
+    keep_elderly = parameters["keep_elderly"]
 
     logger.info("Reading metadata")
     md = read_metadata(json_file_path)
 
     logger.info("Loading cohorts")
-    base_cohort = gender_filter(md.get("filter_patients"), gender)
+    md.get("filter_patients").add_age_information(AGE_REFERENCE_DATE)
+    base_cohort = keep_elderly_filter(
+        gender_filter(md.get("filter_patients"), gender), keep_elderly
+    )
     followup = md.get("follow_up")
     exposures = md.get("exposures")
     outcomes = site_filter(md.get("fractures"), site)
@@ -148,9 +160,12 @@ if __name__ == "__main__":
     min_exp = exposures.intersection(min_base)
     min_out = outcomes.intersection(min_base)
 
+    logger.debug("Min base subject count {}".format(min_base.subjects.count()))
+
     min_fup = clean_followup(followup.intersection(min_base), valid_start, valid_stop)
     min_incident_out = delete_prevalent(min_out, min_fup)
     first_outcome = keep_first_outcome(min_incident_out)
+
     logger.info("Checking Cohorts with first outcome")
     loader = ConvSccsLoader(
         min_base,
@@ -168,12 +183,16 @@ if __name__ == "__main__":
     )
     logger.info("Loading features")
     features, labels, censoring = loader.load()
-
     mapping = loader.mappings[0]
     n_age_groups = loader.n_age_groups
 
+    print("Number of samples {}".format(len(censoring)))
     pickle_object(features, "features")
     pickle_object(labels, "labels")
     pickle_object(censoring, "censoring")
     pickle_object(mapping, "mapping")
     pickle_object(n_age_groups, "age_groups")
+
+
+if __name__ == "__main__":
+    main()

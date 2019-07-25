@@ -14,9 +14,6 @@ def config_file_generator(petit_condtionnement, grand_condtionnement, end_delay)
 output.root = "/shared/Observapur/staging/{}/{}"
 output.save_mode = "overwrite"
 
-exposures.min_purchases: 1           
-exposures.start_delay: 0 months      
-exposures.purchases_window: 0 months 
 exposures.end_threshold_ngc: {} days
 exposures.end_threshold_gc: {} days
 exposures.end_delay: {} days
@@ -37,6 +34,7 @@ def generate_parameters(
     petit_condtionnements=[30],
     grand_condtionnements=[90],
     end_delays=[0],
+    keep_elderly=[True],
 ):
     for (
         path,
@@ -47,6 +45,7 @@ def generate_parameters(
         petit_condtionnement,
         grand_condtionnement,
         end_delay,
+        kp,
     ) in product(
         json_file_path,
         gender_list,
@@ -56,8 +55,9 @@ def generate_parameters(
         petit_condtionnements,
         grand_condtionnements,
         end_delays,
+        keep_elderly,
     ):
-        directory_name = "gender={}-bucket-size={}-lag={}-site={}-PC={}-GC={}-ED={}".format(
+        directory_name = "gender={}-bucket-size={}-lag={}-site={}-PC={}-GC={}-ED={}-KeepElderly={}".format(
             gender,
             bucket,
             lag,
@@ -65,6 +65,7 @@ def generate_parameters(
             petit_condtionnement,
             grand_condtionnement,
             end_delay,
+            kp
         )
         os.mkdir(directory_name)
         parameters = {
@@ -76,6 +77,7 @@ def generate_parameters(
             "petit_condtionnement": petit_condtionnement,
             "grand_condtionnement": grand_condtionnement,
             "end_delay": end_delay,
+            "keep_elderly": kp,
         }
         with open(
             os.path.join(directory_name, "parameters.json"), "w"
@@ -90,10 +92,18 @@ def generate_parameters(
 
 
 if __name__ == "__main__":
-    json_file_path = [
-        "/home/sebiat/builds/serial_extraction/metadata_fall_2019_07_22_10_17_25.json"
-    ]
+    json_file_path = ["metadata_fall.json"]
     bucket_size = [1]
-    lag = [30]
-    sites = ["ColDuFemur", "Poignet"]
-    generate_parameters(json_file_path, lag, bucket_size, sites=sites)
+    lag = [44]
+    sites = ["ColDuFemur", "all"]
+    keep_elderlys = ["True", "False"]
+    end_delay = [0, 15]
+    generate_parameters(
+        json_file_path,
+        lag,
+        bucket_size,
+        gender_list=["all"],
+        sites=sites,
+        keep_elderly=keep_elderlys,
+        end_delays=end_delay,
+    )

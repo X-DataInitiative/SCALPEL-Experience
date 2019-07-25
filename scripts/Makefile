@@ -2,10 +2,12 @@ help:
 	@echo "parameters-generator - generate parameters for loaders"
 	@echo "submit-pyspark - submit pyspark jobs for each parameters group"
 	@echo "run-models - run models for generated data"
+	@echo "submit-transform- run Fall Main transformers. Need to update transform_submit.zsh"
+	@echo "clean - delete all experiments"
 
 all: default
 
-default: parameters-generator submit-pyspark run-models
+default: parameters-generator submit-transform submit-pyspark run-models
 
 parameters-generator: 
 	mkdir ../expirements
