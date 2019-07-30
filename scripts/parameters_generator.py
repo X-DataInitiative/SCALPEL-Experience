@@ -1,7 +1,7 @@
-import os
-import json
-from itertools import product
 import datetime
+import json
+import os
+from itertools import product
 
 
 def config_file_generator(petit_condtionnement, grand_condtionnement, end_delay) -> str:
@@ -11,7 +11,7 @@ def config_file_generator(petit_condtionnement, grand_condtionnement, end_delay)
         petit_condtionnement, grand_condtionnement, end_delay
     )
     return """
-output.root = "/shared/Observapur/staging/{}/{}"
+output.root = "/shared/Observapur/staging/CNAM-399/{}/{}"
 output.save_mode = "overwrite"
 
 exposures.end_threshold_ngc: {} days
@@ -20,6 +20,8 @@ exposures.end_delay: {} days
 
 patients.start_gap_in_months: 12
 
+outcomes.fall_frame: 4 months
+
 sites.sites: ["BodySites"]""".format(
         date, hdfs_output, petit_condtionnement, grand_condtionnement, end_delay
     )
@@ -27,14 +29,16 @@ sites.sites: ["BodySites"]""".format(
 
 def generate_parameters(
     json_file_path,
-    lag,
-    bucket_size,
-    gender_list=["homme", "femme", "all"],
+    lags=[44],
+    bucket_size=[1],
+    gender_list=["all"],
     sites=["all"],
     petit_condtionnements=[30],
     grand_condtionnements=[90],
-    end_delays=[0],
+    end_delays=[15],
     keep_elderly=[True],
+    keep_multi_fractured=[True],
+    keep_multi_admitted=[True],
 ):
     for (
         path,
@@ -46,18 +50,22 @@ def generate_parameters(
         grand_condtionnement,
         end_delay,
         kp,
+        kmf,
+        kma,
     ) in product(
         json_file_path,
         gender_list,
         bucket_size,
-        lag,
+        lags,
         sites,
         petit_condtionnements,
         grand_condtionnements,
         end_delays,
         keep_elderly,
+        keep_multi_fractured,
+        keep_multi_admitted,
     ):
-        directory_name = "gender={}-bucket-size={}-lag={}-site={}-PC={}-GC={}-ED={}-KeepElderly={}".format(
+        directory_name = "gender={}-bucket-size={}-lag={}-site={}-PC={}-GC={}-ED={}-KeepElderly={}-KeepMultiFractured={}-KeepMultiAdmitted={}".format(
             gender,
             bucket,
             lag,
@@ -65,7 +73,9 @@ def generate_parameters(
             petit_condtionnement,
             grand_condtionnement,
             end_delay,
-            kp
+            kp,
+            kmf,
+            kma,
         )
         os.mkdir(directory_name)
         parameters = {
@@ -78,6 +88,8 @@ def generate_parameters(
             "grand_condtionnement": grand_condtionnement,
             "end_delay": end_delay,
             "keep_elderly": kp,
+            "keep_multi_fractured": kmf,
+            "keep_multi_admitted": kma
         }
         with open(
             os.path.join(directory_name, "parameters.json"), "w"
@@ -92,18 +104,41 @@ def generate_parameters(
 
 
 if __name__ == "__main__":
+    # Default
     json_file_path = ["metadata_fall.json"]
-    bucket_size = [1]
-    lag = [44]
-    sites = ["ColDuFemur", "all"]
-    keep_elderlys = ["True", "False"]
-    end_delay = [0, 15]
+    generate_parameters(json_file_path)
+
+    # Remove Elderly
+    generate_parameters(json_file_path, keep_elderly=[False])
+
+    # Gender variation
+    generate_parameters(json_file_path, gender_list=["homme", "femme"])
+
+    # No end delay
+    generate_parameters(json_file_path, lags=[29], end_delays=[0])
+
+    # Large End Delay
+    generate_parameters(json_file_path, end_delays=[30], lags=[59])
+
+    # Smoothed
+    generate_parameters(json_file_path, bucket_size=[5], lags=[8])
+
+    # Hip Fracture
+    generate_parameters(json_file_path, sites=["ColDuFemur"])
+
+    # One admission for fracture
+    generate_parameters(json_file_path, keep_multi_admitted=[False])
+
+    # Exclude multi trauma patients
+    generate_parameters(json_file_path, keep_multi_fractured=[False])
+
+    # One admission and one fracture for the admission
     generate_parameters(
-        json_file_path,
-        lag,
-        bucket_size,
-        gender_list=["all"],
-        sites=sites,
-        keep_elderly=keep_elderlys,
-        end_delays=end_delay,
+        json_file_path, keep_multi_fractured=[False], keep_multi_admitted=[False]
     )
+
+    # Under lagged
+    generate_parameters(json_file_path, lags=[30])
+
+    # Under lagged, low granularity
+    generate_parameters(json_file_path, lags=[6], bucket_size=[5])
