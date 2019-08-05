@@ -1,8 +1,9 @@
-from tick.survival.sccs import StreamConvSCCS
-import pandas as pd
-import pickle
 import json
+import pickle
+
 import numpy as np
+import pandas as pd
+from tick.survival.sccs import StreamConvSCCS
 
 
 def read_parameters() -> dict:
@@ -48,8 +49,9 @@ if __name__ == "__main__":
         n_lags,
         penalized_features,
         max_iter=500,
-        verbose=False,
-        record_every=100,
+        verbose=True,
+        record_every=1,
+        print_every=10,
         tol=1e-5,
         threads=10
     )
@@ -61,7 +63,7 @@ if __name__ == "__main__":
     )
 
     coeffs, cv_track = model.fit_kfold_cv(
-        X, y, c, C_tv_range=(1, 8), C_group_l1_range=(1, 8), n_cv_iter=60, n_folds=3
+        X, y, c, C_tv_range=(1, 8), C_group_l1_range=(1, 8), n_cv_iter=50, n_folds=3
     )
 
     print("Saving results")
@@ -77,7 +79,9 @@ if __name__ == "__main__":
         max_iter=500,
         C_tv=best_parameters["C_tv"],
         C_group_l1=best_parameters["C_group_l1"],
-        verbose=False,
+        verbose=True,
+        record_every=1,
+        print_every=10,
         tol=1e-5,
         threads=10
     )
