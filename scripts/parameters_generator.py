@@ -39,6 +39,8 @@ def generate_parameters(
     keep_elderly=[True],
     keep_multi_fractured=[True],
     keep_multi_admitted=[True],
+    epileptics_controls=[False],
+    drugs_controls=[False],
 ):
     for (
         path,
@@ -52,6 +54,8 @@ def generate_parameters(
         kp,
         kmf,
         kma,
+        ec,
+        dc,
     ) in product(
         json_file_path,
         gender_list,
@@ -64,18 +68,29 @@ def generate_parameters(
         keep_elderly,
         keep_multi_fractured,
         keep_multi_admitted,
+        epileptics_controls,
+        drugs_controls,
     ):
-        directory_name = "gender={}-bucket-size={}-lag={}-site={}-PC={}-GC={}-ED={}-KeepElderly={}-KeepMultiFractured={}-KeepMultiAdmitted={}".format(
+        directory_name = (
+            "gender={}-bucketsize={}-lag={}-site={}"
+            "-PC={}-GC={}-ED={}"
+            "-KeepElderly={}-KeepMultiFractured={}-"
+            "KeepMultiAdmitted={}-epileptics={}-drugs={}"
+        ).format(
             gender,
             bucket,
             lag,
-            site,
+            site.__repr__()
+            .translate({ord(c): "" for c in ["[", "]", " ", "'"]})
+            .replace(",", "_"),
             petit_condtionnement,
             grand_condtionnement,
             end_delay,
             kp,
             kmf,
             kma,
+            ec,
+            dc,
         )
         os.mkdir(directory_name)
         parameters = {
@@ -89,7 +104,9 @@ def generate_parameters(
             "end_delay": end_delay,
             "keep_elderly": kp,
             "keep_multi_fractured": kmf,
-            "keep_multi_admitted": kma
+            "keep_multi_admitted": kma,
+            "epileptics_control": ec,
+            "drugs_control": dc,
         }
         with open(
             os.path.join(directory_name, "parameters.json"), "w"
@@ -104,41 +121,13 @@ def generate_parameters(
 
 
 if __name__ == "__main__":
-    # Default
     json_file_path = ["metadata_fall.json"]
-    generate_parameters(json_file_path)
 
-    # Remove Elderly
-    generate_parameters(json_file_path, keep_elderly=[False])
+    # Remove Epileptics
+    generate_parameters(json_file_path, epileptics_controls=[True])
 
-    # Gender variation
-    generate_parameters(json_file_path, gender_list=["homme", "femme"])
+    # Control drugs
+    generate_parameters(json_file_path, drugs_controls=[True])
 
-    # No end delay
-    generate_parameters(json_file_path, lags=[29], end_delays=[0])
-
-    # Large End Delay
-    generate_parameters(json_file_path, end_delays=[30], lags=[59])
-
-    # Smoothed
-    generate_parameters(json_file_path, bucket_size=[5], lags=[8])
-
-    # Hip Fracture
-    generate_parameters(json_file_path, sites=["ColDuFemur"])
-
-    # One admission for fracture
-    generate_parameters(json_file_path, keep_multi_admitted=[False])
-
-    # Exclude multi trauma patients
-    generate_parameters(json_file_path, keep_multi_fractured=[False])
-
-    # One admission and one fracture for the admission
-    generate_parameters(
-        json_file_path, keep_multi_fractured=[False], keep_multi_admitted=[False]
-    )
-
-    # Under lagged
-    generate_parameters(json_file_path, lags=[30])
-
-    # Under lagged, low granularity
-    generate_parameters(json_file_path, lags=[6], bucket_size=[5])
+    # Poignet & Bassin
+    generate_parameters(json_file_path, sites=[["Bassin", "Poignet"]])

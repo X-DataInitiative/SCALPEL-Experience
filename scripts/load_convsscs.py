@@ -38,7 +38,7 @@ class Parameter(abc.ABC):
 
 class GenderParameter(Parameter):
     def log(self):
-        return "Applying gender filter."
+        return "Applying gender filter: {}".format(self.value)
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value == "homme":
@@ -65,7 +65,7 @@ class GenderParameter(Parameter):
 
 class OldSubjectsParameter(Parameter):
     def log(self) -> str:
-        return "Applying old subjects filter."
+        return "Keep old subjects filter: {}".format(self.value)
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value is True:
@@ -77,13 +77,13 @@ class OldSubjectsParameter(Parameter):
 
 class FractureSiteParameter(Parameter):
     def log(self) -> str:
-        return "Applying site fracture filter."
+        return "Fractures sites included: {}".format(self.value)
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value == "all":
             return cohort
         else:
-            events = cohort.events.where(sf.col("groupID") == self.value)
+            events = cohort.events.where(sf.col("groupID").isin(self.value))
             if events.count() == 0:
                 raise ValueError(
                     "Le site {} n'existe pas dans la cohorte de fractures".format(
@@ -101,7 +101,7 @@ class FractureSiteParameter(Parameter):
 
 class MultiFracturedParameter(Parameter):
     def log(self) -> str:
-        return "Applying Multi-fractured filter"
+        return "Keep multi fractured: {}".format(self.value)
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value == True:
@@ -129,7 +129,7 @@ class MultiFracturedParameter(Parameter):
 
 class MultiAdmissionParameter(Parameter):
     def log(self) -> str:
-        return "Applying Multi-admission filter"
+        return "Keep multi admitted: {}".format(self.value)
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value == True:
@@ -151,6 +151,44 @@ class MultiAdmissionParameter(Parameter):
                 new_fractures.select("patientID").distinct(),
                 new_fractures,
             )
+
+
+class EpilepticsControlParameter(Parameter):
+    def __init__(self, value, epileptics: Cohort):
+        super().__init__(value)
+        self.epileptics = epileptics
+
+    def log(self) -> str:
+        return "Exclude Epileptics: {}".format(self.value)
+
+    def filter(self, cohort: Cohort) -> Cohort:
+        if self.value:
+            return cohort.difference(self.epileptics)
+        else:
+            return cohort
+
+
+class ControlDrugsParameter(Parameter):
+    def __init__(self, value, control_drugs: Cohort):
+        super().__init__(value)
+        self.control_drugs = control_drugs
+
+    def log(self) -> str:
+        return "Include control drugs : {}".format(self.value)
+
+    def filter(self, cohort: Cohort) -> Cohort:
+        if self.value:
+            control_drugs_exposures = self.control_drugs.events.join(
+                cohort.subjects, "patientID", "inner"
+            )
+            return Cohort(
+                cohort.name,
+                cohort.characteristics,
+                cohort.subjects,
+                cohort.events.union(control_drugs_exposures),
+            )
+        else:
+            return cohort
 
 
 def read_metadata(file_path: str) -> Metadata:
@@ -267,27 +305,41 @@ def main():
 
     valid_start = sf.col("start").between(STUDY_START, STUDY_END)
     valid_stop = sf.col("end").between(STUDY_START, STUDY_END)
+    logger.info("Reading metadata")
 
     logger.info("Reading parameters")
     parameters = read_parameters()
     json_file_path = parameters["path"]
+    md = read_metadata(json_file_path)
+
     gender = parameters["gender"]
     bucket_size = parameters["bucket"]
     site = parameters["site"]
     keep_elderly = parameters["keep_elderly"]
     keep_multi_fractured = parameters["keep_multi_fractured"]
     keep_multi_admitted = parameters["keep_multi_admitted"]
+    epileptics_control = parameters["epileptics_control"]
+    drugs_control = parameters["drugs_control"]
 
     gender_param = GenderParameter(gender)
     keep_elderly_param = OldSubjectsParameter(keep_elderly)
+    epileptics_control_param = EpilepticsControlParameter(
+        epileptics_control, md.get("epileptics")
+    )
 
-    subjects_parameters = [gender_param, keep_elderly_param]
+    subjects_parameters = [gender_param, keep_elderly_param, epileptics_control_param]
 
     site_param = FractureSiteParameter(site)
     multi_fractured_param = MultiFracturedParameter(keep_multi_fractured)
     multi_admitted_param = MultiAdmissionParameter(keep_multi_admitted)
 
     fracture_parameters = [site_param, multi_fractured_param, multi_admitted_param]
+
+    drugs_control_param = ControlDrugsParameter(
+        drugs_control, md.get("control_drugs_exposures")
+    )
+
+    exposure_parameters = [drugs_control_param]
 
     logger.info("Reading metadata")
     md = read_metadata(json_file_path)
@@ -298,12 +350,18 @@ def main():
 
     base_cohort = md.get("filter_patients")
 
-    base_cohort.add_age_information()
+    base_cohort.add_age_information(AGE_REFERENCE_DATE)
     for param in subjects_parameters:
         logger.info(param.log())
         base_cohort = param.filter(base_cohort)
 
-    outcomes = md.get("fractures")
+    clean_outcomes = md.get("fractures").events.where(valid_start)
+    outcomes = Cohort(
+        "Fractures within study period",
+        "Subjects with fractures within study dates",
+        clean_outcomes.select("patientID").distinct(),
+        clean_outcomes,
+    )
     for param in fracture_parameters:
         logger.info(param.log())
         outcomes = param.filter(outcomes)
@@ -313,7 +371,7 @@ def main():
 
     min_base = base_cohort.intersect_all([followup, exposures, outcomes])
     min_base.add_subject_information(base_cohort, "omit_all")
-    min_exp = exposures.intersection(min_base)
+    min_exp = drugs_control_param.filter(exposures.intersection(min_base))
     min_out = outcomes.intersection(min_base)
 
     logger.debug("Min base subject count {}".format(min_base.subjects.count()))
