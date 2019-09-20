@@ -4,18 +4,19 @@ import os
 from itertools import product
 
 
-def config_file_generator(petit_condtionnement, grand_condtionnement, end_delay) -> str:
+def config_file_generator(petit_condtionnement, grand_condtionnement, start_delay, end_delay) -> str:
     now = datetime.datetime.now()
     date = now.strftime("%Y-%m-%d")
-    hdfs_output = "PC={}-GC={}-ED={}".format(
-        petit_condtionnement, grand_condtionnement, end_delay
+    hdfs_output = "PC={}-GC={}-SD={}-ED={}".format(
+        petit_condtionnement, grand_condtionnement, start_delay, end_delay
     )
     return """
-output.root = "/shared/Observapur/staging/CNAM-399/{}/{}"
+output.root = "/shared/Observapur/staging/CNAM-410/{}/{}"
 output.save_mode = "overwrite"
 
 exposures.end_threshold_ngc: {} days
 exposures.end_threshold_gc: {} days
+exposures.start_delay: {} days
 exposures.end_delay: {} days
 
 patients.start_gap_in_months: 12
@@ -23,7 +24,7 @@ patients.start_gap_in_months: 12
 outcomes.fall_frame: 4 months
 
 sites.sites: ["BodySites"]""".format(
-        date, hdfs_output, petit_condtionnement, grand_condtionnement, end_delay
+        date, hdfs_output, petit_condtionnement, grand_condtionnement, start_delay, end_delay
     )
 
 
@@ -35,6 +36,7 @@ def generate_parameters(
     sites=["all"],
     petit_condtionnements=[30],
     grand_condtionnements=[90],
+    start_delays=[0],
     end_delays=[15],
     keep_elderly=[True],
     keep_multi_fractured=[True],
@@ -50,6 +52,7 @@ def generate_parameters(
         site,
         petit_condtionnement,
         grand_condtionnement,
+        start_delay,
         end_delay,
         kp,
         kmf,
@@ -64,6 +67,7 @@ def generate_parameters(
         sites,
         petit_condtionnements,
         grand_condtionnements,
+        start_delays,
         end_delays,
         keep_elderly,
         keep_multi_fractured,
@@ -73,7 +77,7 @@ def generate_parameters(
     ):
         directory_name = (
             "gender={}-bucketsize={}-lag={}-site={}"
-            "-PC={}-GC={}-ED={}"
+            "-PC={}-GC={}-SD={}-ED={}"
             "-KeepElderly={}-KeepMultiFractured={}-"
             "KeepMultiAdmitted={}-epileptics={}-drugs={}"
         ).format(
@@ -85,6 +89,7 @@ def generate_parameters(
             .replace(",", "_"),
             petit_condtionnement,
             grand_condtionnement,
+            start_delay,
             end_delay,
             kp,
             kmf,
@@ -101,6 +106,7 @@ def generate_parameters(
             "site": site,
             "petit_condtionnement": petit_condtionnement,
             "grand_condtionnement": grand_condtionnement,
+            "start_delay": start_delay,
             "end_delay": end_delay,
             "keep_elderly": kp,
             "keep_multi_fractured": kmf,
@@ -114,7 +120,7 @@ def generate_parameters(
             parameters_file.write(json.dumps(parameters))
 
         config_file = config_file_generator(
-            petit_condtionnement, grand_condtionnement, end_delay
+            petit_condtionnement, grand_condtionnement, start_delay, end_delay
         )
         with open(os.path.join(directory_name, "fall.conf"), "w") as configuration_file:
             configuration_file.write(config_file)
@@ -123,11 +129,4 @@ def generate_parameters(
 if __name__ == "__main__":
     json_file_path = ["metadata_fall.json"]
 
-    # Remove Epileptics
-    generate_parameters(json_file_path, epileptics_controls=[True])
-
-    # Control drugs
-    generate_parameters(json_file_path, drugs_controls=[True])
-
-    # Poignet & Bassin
-    generate_parameters(json_file_path, sites=[["Bassin", "Poignet"]])
+    generate_parameters(json_file_path, sites=["all", ["Poignet"], ["Rachis"], ["ColDuFemur"]], start_delays=[1, 2, 3])
