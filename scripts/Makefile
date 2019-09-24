@@ -1,7 +1,7 @@
 help:
-    @echo "all - Generate "
+    @echo "all - Run all in order. "
 	@echo "parameters-generator - generate parameters for experiments. (Python)"
-	@echo "submit-transform - run Fall Main Extractors.(Spark Scala)"
+	@echo "submit-extract - run Fall Main Extractors.(Spark Scala)"
 	@echo "submit-transform - run Fall Main Transformers (Outcomes & Exposures) for each experiment.(Spark Scala)"
 	@echo "submit-loaders - submit ConvSCCS loaders for each experiment. (PySpark)"
 	@echo "run-models - run models for each experiment.(python + tick)"
@@ -20,7 +20,7 @@ submit-extract:
 	cd ../expirements && zsh ../scripts/submit_extract.zsh
 
 submit-transform:
-	cd ../expirements && zsh ../scripts/transform_submit.zsh
+	cd ../expirements && zsh ../scripts/submit_transform.zsh
 
 submit-loaders:
 	cd ../expirements && zsh ../scripts/submit_loaders.zsh

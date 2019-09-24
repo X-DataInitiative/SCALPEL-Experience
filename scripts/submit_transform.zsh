@@ -13,4 +13,4 @@ runCommand "spark-submit \
   --conf spark.sql.broadcastTimeout=1200 \
   --conf spark.locality.wait=5s \
   --conf spark.eventLog.enabled=false \
-  ../../dist/extraction.jar env=cnam conf=../../dist/fall.conf meta_bin=../../dist/meta.bin"
+  ../../dist/extraction.jar env=cnam conf=fall.conf meta_bin=../../dist/meta.bin"

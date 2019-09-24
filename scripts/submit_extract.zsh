@@ -14,4 +14,4 @@ runCommand "spark-submit \
   --conf spark.locality.wait=5s \
   --conf spark.eventLog.enabled=false \
   --conf spark.sql.parquet.compression.codec='uncompressed' \
-  ../../dist/extraction.jar env=cnam conf=../../dist/fall.conf meta_bin=../../dist/meta.bin"
+  ../dist/extraction.jar env=cnam conf=../dist/fall.conf meta_bin=../dist/meta.bin"
