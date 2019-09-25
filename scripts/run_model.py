@@ -53,7 +53,7 @@ if __name__ == "__main__":
         record_every=1,
         print_every=10,
         tol=1e-5,
-        threads=10
+        threads=15
     )
 
     print(

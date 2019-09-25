@@ -38,7 +38,7 @@ class Parameter(abc.ABC):
 
 class GenderParameter(Parameter):
     def log(self):
-        return "Applying gender filter: {}".format(self.value)
+        return "Genders included: {}".format(self.value)
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value == "homme":
@@ -79,11 +79,11 @@ class FractureSiteParameter(Parameter):
     def log(self) -> str:
         return "Fractures sites included: {}".format(self.value)
 
-    def filter(self, cohort: Cohort) -> Cohort:
+    def filter(self, fractures: Cohort) -> Cohort:
         if self.value == "all":
-            return cohort
+            return fractures
         else:
-            events = cohort.events.where(sf.col("groupID").isin(self.value))
+            events = fractures.events.where(sf.col("groupID").isin(self.value))
             if events.count() == 0:
                 raise ValueError(
                     "Le site {} n'existe pas dans la cohorte de fractures".format(
@@ -94,6 +94,30 @@ class FractureSiteParameter(Parameter):
                 return Cohort(
                     "Fractures on {}".format(self.value),
                     "Subjects with fractures on site {}".format(self.value),
+                    events.select("patientID").distinct(),
+                    events,
+                )
+
+
+class FractureSeverityParameter(Parameter):
+    def log(self) -> str:
+        return "Fractures severity included: {}".format(self.value)
+
+    def filter(self, fractures: Cohort) -> Cohort:
+        if self.value == "all":
+            return fractures
+        else:
+            events = fractures.events.where(sf.col("weight").isin(self.value))
+            if events.count() == 0:
+                raise ValueError(
+                    "La severite {} n'existe pas dans la cohorte de fractures".format(
+                        self.value
+                    )
+                )
+            else:
+                return Cohort(
+                    "Fractures with severity {}".format(self.value),
+                    "Subjects with fractures with severity {}".format(self.value),
                     events.select("patientID").distinct(),
                     events,
                 )
@@ -315,6 +339,7 @@ def main():
     gender = parameters["gender"]
     bucket_size = parameters["bucket"]
     site = parameters["site"]
+    severity = parameters["fracture_severity"]
     keep_elderly = parameters["keep_elderly"]
     keep_multi_fractured = parameters["keep_multi_fractured"]
     keep_multi_admitted = parameters["keep_multi_admitted"]
@@ -330,10 +355,11 @@ def main():
     subjects_parameters = [gender_param, keep_elderly_param, epileptics_control_param]
 
     site_param = FractureSiteParameter(site)
+    severity_param = FractureSeverityParameter(severity)
     multi_fractured_param = MultiFracturedParameter(keep_multi_fractured)
     multi_admitted_param = MultiAdmissionParameter(keep_multi_admitted)
 
-    fracture_parameters = [site_param, multi_fractured_param, multi_admitted_param]
+    fracture_parameters = [severity_param, site_param, multi_fractured_param, multi_admitted_param]
 
     drugs_control_param = ControlDrugsParameter(
         drugs_control, md.get("control_drugs_exposures")

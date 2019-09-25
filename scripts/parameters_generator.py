@@ -11,7 +11,7 @@ def config_file_generator(petit_condtionnement, grand_condtionnement, start_dela
         petit_condtionnement, grand_condtionnement, start_delay, end_delay
     )
     return """
-output.root = "/shared/Observapur/staging/CNAM-410/{}/{}"
+output.root = "/shared/Observapur/staging/CNAM-339/{}/{}"
 output.save_mode = "overwrite"
 
 exposures.end_threshold_ngc: {} days
@@ -38,6 +38,7 @@ def generate_parameters(
     grand_condtionnements=[90],
     start_delays=[0],
     end_delays=[15],
+    fracture_severities=["all"],
     keep_elderly=[True],
     keep_multi_fractured=[True],
     keep_multi_admitted=[True],
@@ -54,6 +55,7 @@ def generate_parameters(
         grand_condtionnement,
         start_delay,
         end_delay,
+        fs,
         kp,
         kmf,
         kma,
@@ -69,6 +71,7 @@ def generate_parameters(
         grand_condtionnements,
         start_delays,
         end_delays,
+        fracture_severities,
         keep_elderly,
         keep_multi_fractured,
         keep_multi_admitted,
@@ -78,8 +81,9 @@ def generate_parameters(
         directory_name = (
             "gender={}-bucketsize={}-lag={}-site={}"
             "-PC={}-GC={}-SD={}-ED={}"
+            "-FractureSeverity={}"
             "-KeepElderly={}-KeepMultiFractured={}-"
-            "KeepMultiAdmitted={}-epileptics={}-drugs={}"
+            "KeepMultiAdmitted={}-Epileptics={}-Drugs={}"
         ).format(
             gender,
             bucket,
@@ -91,6 +95,9 @@ def generate_parameters(
             grand_condtionnement,
             start_delay,
             end_delay,
+            fs.__repr__()
+            .translate({ord(c): "" for c in ["[", "]", " ", "'"]})
+            .replace(",", "_"),
             kp,
             kmf,
             kma,
@@ -108,6 +115,7 @@ def generate_parameters(
             "grand_condtionnement": grand_condtionnement,
             "start_delay": start_delay,
             "end_delay": end_delay,
+            "fracture_severity": fs,
             "keep_elderly": kp,
             "keep_multi_fractured": kmf,
             "keep_multi_admitted": kma,
@@ -129,4 +137,4 @@ def generate_parameters(
 if __name__ == "__main__":
     json_file_path = ["metadata_fall.json"]
 
-    generate_parameters(json_file_path, sites=["all", ["Poignet"], ["Rachis"], ["ColDuFemur"]], start_delays=[1, 2, 3])
+    generate_parameters(json_file_path, fracture_severities=[[3], [3, 2], [4], [3, 2, 4]])
