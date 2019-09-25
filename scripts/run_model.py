@@ -63,7 +63,7 @@ if __name__ == "__main__":
     )
 
     coeffs, cv_track = model.fit_kfold_cv(
-        X, y, c, C_tv_range=(1, 8), C_group_l1_range=(1, 8), n_cv_iter=50, n_folds=3
+        X, y, c, C_tv_range=(2, 5), C_group_l1_range=(3, 9), n_cv_iter=100, n_folds=3
     )
 
     print("Saving results")
