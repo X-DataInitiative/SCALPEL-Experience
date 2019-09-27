@@ -6,30 +6,30 @@ help:
         @echo "submit-loaders - submit ConvSCCS loaders for each experiment. (PySpark)"
         @echo "run-models - run models for each experiment.(python + tick)"
         @echo "submit-stats - submit pyspark stats for each experiment. (PySpark)"
+        @echo "extract-results - extract results to BDP out. (Shell)"
         @echo "clean - delete all experiments. (Shell)"
 
 all: default
 
-default: clean parameters-generator submit-extract submit-transform submit-loaders run-models
+default: clean parameters-generator submit-extract submit-transform submit-loaders run-models extract-results
 
 parameters-generator:
-        mkdir ../expirements
-        cd ../expirements && python ../scripts/parameters_generator.py
+        cd ../experiments && python ../scripts/parameters_generator.py
 
 submit-extract:
-        cd ../expirements && zsh ../scripts/submit_extract.zsh
+        cd ../experiments && zsh ../scripts/submit_extract.zsh
 
 submit-transform:
-        cd ../expirements && zsh ../scripts/submit_transform.zsh
+        cd ../experiments && zsh ../scripts/submit_transform.zsh
 
 submit-loaders:
-        cd ../expirements && zsh ../scripts/submit_loaders.zsh
+        cd ../experiments && zsh ../scripts/submit_loaders.zsh
 
 submit-stats:
-	cd ../expirements && zsh ../scripts/submit_stats.zsh
+	cd ../experiments && zsh ../scripts/submit_stats.zsh
 
 run-models:
-	cd ../expirements && zsh ../scripts/run_model.zsh
+	cd ../experiments && zsh ../scripts/run_model.zsh
 
 clean:
-      	rm -rf ../expirements
+      	rm -rf ../experiments
