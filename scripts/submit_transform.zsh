@@ -6,7 +6,7 @@ function runCommand() {
 
 runCommand "spark-submit \
   --total-executor-cores 160 \
-  --executor-memory 18G \
+  --executor-memory 32G \
   --conf spark.executor.cores=4\
   --class fr.polytechnique.cmap.cnam.study.fall.FallMainTransform \
   --conf spark.driver.maxResultSize=20G \

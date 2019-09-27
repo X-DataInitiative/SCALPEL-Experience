@@ -49,7 +49,7 @@ class Parameter(abc.ABC):
 
 class GenderParameter(Parameter):
     def log(self):
-        return "Applying gender filter."
+        return "Genders included: {}".format(self.value)
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value == "homme":
@@ -76,7 +76,7 @@ class GenderParameter(Parameter):
 
 class OldSubjectsParameter(Parameter):
     def log(self) -> str:
-        return "Applying old subjects filter."
+        return "Keep old subjects filter: {}".format(self.value)
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value is True:
@@ -88,13 +88,13 @@ class OldSubjectsParameter(Parameter):
 
 class FractureSiteParameter(Parameter):
     def log(self) -> str:
-        return "Applying site fracture filter."
+        return "Fractures sites included: {}".format(self.value)
 
-    def filter(self, cohort: Cohort) -> Cohort:
+    def filter(self, fractures: Cohort) -> Cohort:
         if self.value == "all":
-            return cohort
+            return fractures
         else:
-            events = cohort.events.where(sf.col("groupID") == self.value)
+            events = fractures.events.where(sf.col("groupID").isin(self.value))
             if events.count() == 0:
                 raise ValueError(
                     "Le site {} n'existe pas dans la cohorte de fractures".format(
@@ -110,9 +110,33 @@ class FractureSiteParameter(Parameter):
                 )
 
 
+class FractureSeverityParameter(Parameter):
+    def log(self) -> str:
+        return "Fractures severity included: {}".format(self.value)
+
+    def filter(self, fractures: Cohort) -> Cohort:
+        if self.value == "all":
+            return fractures
+        else:
+            events = fractures.events.where(sf.col("weight").isin(self.value))
+            if events.count() == 0:
+                raise ValueError(
+                    "La severite {} n'existe pas dans la cohorte de fractures".format(
+                        self.value
+                    )
+                )
+            else:
+                return Cohort(
+                    "Fractures with severity {}".format(self.value),
+                    "Subjects with fractures with severity {}".format(self.value),
+                    events.select("patientID").distinct(),
+                    events,
+                )
+
+
 class MultiFracturedParameter(Parameter):
     def log(self) -> str:
-        return "Applying Multi-fractured filter"
+        return "Keep multi fractured: {}".format(self.value)
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value == True:
@@ -140,7 +164,7 @@ class MultiFracturedParameter(Parameter):
 
 class MultiAdmissionParameter(Parameter):
     def log(self) -> str:
-        return "Applying Multi-admission filter"
+        return "Keep multi admitted: {}".format(self.value)
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value == True:
@@ -162,6 +186,44 @@ class MultiAdmissionParameter(Parameter):
                 new_fractures.select("patientID").distinct(),
                 new_fractures,
             )
+
+
+class EpilepticsControlParameter(Parameter):
+    def __init__(self, value, epileptics: Cohort):
+        super().__init__(value)
+        self.epileptics = epileptics
+
+    def log(self) -> str:
+        return "Exclude Epileptics: {}".format(self.value)
+
+    def filter(self, cohort: Cohort) -> Cohort:
+        if self.value:
+            return cohort.difference(self.epileptics)
+        else:
+            return cohort
+
+
+class ControlDrugsParameter(Parameter):
+    def __init__(self, value, control_drugs: Cohort):
+        super().__init__(value)
+        self.control_drugs = control_drugs
+
+    def log(self) -> str:
+        return "Include control drugs : {}".format(self.value)
+
+    def filter(self, cohort: Cohort) -> Cohort:
+        if self.value:
+            control_drugs_exposures = self.control_drugs.events.join(
+                cohort.subjects, "patientID", "inner"
+            )
+            return Cohort(
+                cohort.name,
+                cohort.characteristics,
+                cohort.subjects,
+                cohort.events.union(control_drugs_exposures),
+            )
+        else:
+            return cohort
 
 
 def read_metadata(file_path: str) -> Metadata:
@@ -442,25 +504,34 @@ def prepare_metadata() -> Metadata:
     logger.info("Reading parameters")
     parameters = read_parameters()
     json_file_path = parameters["path"]
+
     gender = parameters["gender"]
     site = parameters["site"]
+    severity = parameters["fracture_severity"]
     keep_elderly = parameters["keep_elderly"]
     keep_multi_fractured = parameters["keep_multi_fractured"]
     keep_multi_admitted = parameters["keep_multi_admitted"]
-
-    gender_param = GenderParameter(gender)
-    keep_elderly_param = OldSubjectsParameter(keep_elderly)
-
-    subjects_parameters = [gender_param, keep_elderly_param]
-
-    site_param = FractureSiteParameter(site)
-    multi_fractured_param = MultiFracturedParameter(keep_multi_fractured)
-    multi_admitted_param = MultiAdmissionParameter(keep_multi_admitted)
-
-    fracture_parameters = [site_param, multi_fractured_param, multi_admitted_param]
+    epileptics_control = parameters["epileptics_control"]
+    drugs_control = parameters["drugs_control"]
 
     logger.info("Reading metadata")
     md = read_metadata(json_file_path)
+    cache_metadata(md)
+
+    gender_param = GenderParameter(gender)
+    keep_elderly_param = OldSubjectsParameter(keep_elderly)
+    epileptics_control_param = EpilepticsControlParameter(
+        epileptics_control, md.get("epileptics")
+    )
+
+    subjects_parameters = [gender_param, keep_elderly_param, epileptics_control_param]
+
+    site_param = FractureSiteParameter(site)
+    severity_param = FractureSeverityParameter(severity)
+    multi_fractured_param = MultiFracturedParameter(keep_multi_fractured)
+    multi_admitted_param = MultiAdmissionParameter(keep_multi_admitted)
+
+    fracture_parameters = [severity_param, site_param, multi_fractured_param, multi_admitted_param]
 
     base_cohort = md.get("extract_patients")
     cache_cohort(base_cohort)
@@ -486,9 +557,23 @@ def prepare_metadata() -> Metadata:
         outcomes = param.filter(outcomes)
 
     md.add_cohort("fractures", outcomes)
+
+    exposures = md.get("exposures")
+    drugs_control_param = ControlDrugsParameter(
+        drugs_control, md.get("control_drugs_exposures")
+    )
+
+    exposure_parameters = [drugs_control_param]
+
+    for param in exposure_parameters:
+        logger.info(param.log())
+        exposures = param.filter(exposures)
+    md.add_cohort("exposures", exposures)
     cache_metadata(md)
 
-    md.get("filter_patients").add_age_information(AGE_REFERENCE_DATE)
+    md.add_subjects_information("omit_all", AGE_REFERENCE_DATE)
+    cache_metadata(md)
+    return md
 
 
 # PARAMETERS

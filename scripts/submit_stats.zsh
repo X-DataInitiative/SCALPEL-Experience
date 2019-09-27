@@ -5,8 +5,8 @@ function runCommand() {
 }
 
 runCommand "spark-submit \
---total-executor-cores 192 \
---executor-memory 18G \
+--total-executor-cores 160 \
+--executor-memory 32G \
 --conf spark.executor.cores=4 \
 --conf spark.driver.maxResultSize=20G \
 --conf spark.sql.broadcastTimeout=1200 \

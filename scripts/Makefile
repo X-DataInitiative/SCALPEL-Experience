@@ -11,7 +11,7 @@ help:
 
 all: default
 
-default: clean parameters-generator submit-extract submit-transform submit-loaders run-models extract-results
+default: parameters-generator submit-extract submit-transform submit-stats submit-loaders run-models extract-results
 
 parameters-generator:
         cd ../experiments && python ../scripts/parameters_generator.py
@@ -26,10 +26,10 @@ submit-loaders:
         cd ../experiments && zsh ../scripts/submit_loaders.zsh
 
 submit-stats:
-	cd ../experiments && zsh ../scripts/submit_stats.zsh
+        cd ../experiments && zsh ../scripts/submit_stats.zsh
 
 run-models:
-	cd ../experiments && zsh ../scripts/run_model.zsh
+        cd ../experiments && zsh ../scripts/run_model.zsh
 
 clean:
       	rm -rf ../experiments
