@@ -1,20 +1,22 @@
 import matplotlib
 
+from parameters.experience import (
+    read_metadata,
+    read_parameters,
+    experience_to_flowchart_metadata,
+)
+
 matplotlib.use("Agg")
-import abc
 import json
-import pickle
 
 import pyspark.sql.functions as sf
 import pytz
-from pyspark.sql import Window
 from src.exploration.core.cohort import Cohort
 from src.exploration.core.io import get_logger, get_spark_context, quiet_spark_logger
 from src.exploration.core.metadata import Metadata
 from src.exploration.core.util import rename_df_columns
 import pandas as pd
 from src.exploration.core.decorators import save_plots
-from src.exploration.core.flowchart import Flowchart
 from src.exploration.stats.event_patient_distribution import (
     plot_patient_distribution_per_unique_event,
     plot_unique_event_distribution_per_patient,
@@ -29,287 +31,6 @@ RUN_CHECKS = True
 STUDY_START = pytz.datetime.datetime(2014, 1, 1, tzinfo=pytz.UTC)
 STUDY_END = pytz.datetime.datetime(2017, 1, 1, 23, 59, 59, tzinfo=pytz.UTC)
 AGE_REFERENCE_DATE = pytz.datetime.datetime(2017, 1, 1, tzinfo=pytz.UTC)
-
-
-class Parameter(abc.ABC):
-    def __init__(self, value):
-        self.value = value
-
-    @abc.abstractmethod
-    def log(self) -> str:
-        """
-        Logs the current parameter filtering
-        :return: str
-        """
-
-    @abc.abstractmethod
-    def filter(self, cohort: Cohort) -> Cohort:
-        """Applies the parameter based on the passed value"""
-
-
-class GenderParameter(Parameter):
-    def log(self):
-        return "Genders included: {}".format(self.value)
-
-    def filter(self, cohort: Cohort) -> Cohort:
-        if self.value == "homme":
-            return Cohort(
-                cohort.name,
-                cohort.characteristics,
-                cohort.subjects.where(sf.col("gender") == 1),
-                None,
-            )
-        elif self.value == "femme":
-            return Cohort(
-                cohort.name,
-                cohort.characteristics,
-                cohort.subjects.where(sf.col("gender") == 2),
-                None,
-            )
-        elif self.value == "all":
-            return cohort
-        else:
-            raise ValueError(
-                "Gender must be homme, femme or all. You entered {}".format(self.value)
-            )
-
-
-class OldSubjectsParameter(Parameter):
-    def log(self) -> str:
-        return "Keep old subjects filter: {}".format(self.value)
-
-    def filter(self, cohort: Cohort) -> Cohort:
-        if self.value is True:
-            return cohort
-        else:
-            young_subjects = cohort.subjects.where(sf.col("age") < 85)
-            return Cohort("Young subjects", "Young subjects", young_subjects, None)
-
-
-class FractureSiteParameter(Parameter):
-    def log(self) -> str:
-        return "Fractures sites included: {}".format(self.value)
-
-    def filter(self, fractures: Cohort) -> Cohort:
-        if self.value == "all":
-            return fractures
-        else:
-            events = fractures.events.where(sf.col("groupID").isin(self.value))
-            if events.count() == 0:
-                raise ValueError(
-                    "Le site {} n'existe pas dans la cohorte de fractures".format(
-                        self.value
-                    )
-                )
-            else:
-                return Cohort(
-                    "Fractures on {}".format(self.value),
-                    "Subjects with fractures on site {}".format(self.value),
-                    events.select("patientID").distinct(),
-                    events,
-                )
-
-
-class FractureSeverityParameter(Parameter):
-    def log(self) -> str:
-        return "Fractures severity included: {}".format(self.value)
-
-    def filter(self, fractures: Cohort) -> Cohort:
-        if self.value == "all":
-            return fractures
-        else:
-            events = fractures.events.where(sf.col("weight").isin(self.value))
-            if events.count() == 0:
-                raise ValueError(
-                    "La severite {} n'existe pas dans la cohorte de fractures".format(
-                        self.value
-                    )
-                )
-            else:
-                return Cohort(
-                    "Fractures with severity {}".format(self.value),
-                    "Subjects with fractures with severity {}".format(self.value),
-                    events.select("patientID").distinct(),
-                    events,
-                )
-
-
-class MultiFracturedParameter(Parameter):
-    def log(self) -> str:
-        return "Keep multi fractured: {}".format(self.value)
-
-    def filter(self, cohort: Cohort) -> Cohort:
-        if self.value == True:
-            return cohort
-        else:
-            fractured_once_per_admission = (
-                cohort.events.groupBy(["patientID", "start"])
-                .count()
-                .where(sf.col("count") == 1)
-                .select("patientID")
-                .distinct()
-            )
-            new_fractures = cohort.events.join(
-                fractured_once_per_admission, "patientID"
-            )
-            return Cohort(
-                "Fractures",
-                "{} that has only one fracture per admission".format(
-                    cohort.characteristics
-                ),
-                new_fractures.select("patientID").distinct(),
-                new_fractures,
-            )
-
-
-class MultiAdmissionParameter(Parameter):
-    def log(self) -> str:
-        return "Keep multi admitted: {}".format(self.value)
-
-    def filter(self, cohort: Cohort) -> Cohort:
-        if self.value == True:
-            return cohort
-        else:
-            admitted_once = (
-                cohort.events.groupBy(["patientID", "start"])
-                .count()
-                .groupby("patientID")
-                .count()
-                .where(sf.col("count") == 1)
-            )
-            new_fractures = cohort.events.join(admitted_once, "patientID")
-            return Cohort(
-                "Fractures",
-                "{} that has only one admission for fracture".format(
-                    cohort.characteristics
-                ),
-                new_fractures.select("patientID").distinct(),
-                new_fractures,
-            )
-
-
-class EpilepticsControlParameter(Parameter):
-    def __init__(self, value, epileptics: Cohort):
-        super().__init__(value)
-        self.epileptics = epileptics
-
-    def log(self) -> str:
-        return "Exclude Epileptics: {}".format(self.value)
-
-    def filter(self, cohort: Cohort) -> Cohort:
-        if self.value:
-            return cohort.difference(self.epileptics)
-        else:
-            return cohort
-
-
-class ControlDrugsParameter(Parameter):
-    def __init__(self, value, control_drugs: Cohort):
-        super().__init__(value)
-        self.control_drugs = control_drugs
-
-    def log(self) -> str:
-        return "Include control drugs : {}".format(self.value)
-
-    def filter(self, cohort: Cohort) -> Cohort:
-        if self.value:
-            control_drugs_exposures = self.control_drugs.events.join(
-                cohort.subjects, "patientID", "inner"
-            )
-            return Cohort(
-                cohort.name,
-                cohort.characteristics,
-                cohort.subjects,
-                cohort.events.union(control_drugs_exposures),
-            )
-        else:
-            return cohort
-
-
-def read_metadata(file_path: str) -> Metadata:
-    with open(file_path, "r") as metadata_file:
-        metadata_txt = "".join(metadata_file.readlines())
-        return Metadata.from_json(metadata_txt)
-
-
-def pickle_object(obj, path):
-    with open(path, "wb") as file:
-        pickle.dump(obj, file)
-
-
-def keep_elderly_filter(subjects: Cohort, keep_elderly: bool) -> Cohort:
-    if keep_elderly is True:
-        return subjects
-    else:
-        young_subjects = subjects.subjects.where(sf.col("age") < 85)
-        return Cohort("Young subjects", "Young subjects", young_subjects, None)
-
-
-def gender_filter(cohort: Cohort, gender: str) -> Cohort:
-    if gender == "homme":
-        return Cohort(
-            cohort.name,
-            cohort.characteristics,
-            cohort.subjects.where(sf.col("gender") == 1),
-            None,
-        )
-    elif gender == "femme":
-        return Cohort(
-            cohort.name,
-            cohort.characteristics,
-            cohort.subjects.where(sf.col("gender") == 2),
-            None,
-        )
-    elif gender == "all":
-        return cohort
-    else:
-        raise ValueError(
-            "Gender must be homme, femme or all. You entered {}".format(gender)
-        )
-
-
-def site_filter(outcomes: Cohort, site: str) -> Cohort:
-    if site == "all":
-        return outcomes
-    else:
-        events = outcomes.events.where(sf.col("groupID") == site)
-        if events.count() == 0:
-            raise ValueError(
-                "Le site {} n'existe pas dans la cohorte de fractures".format(site)
-            )
-        else:
-            return Cohort(
-                "Fractures on {}".format(site),
-                "Subjects with fractures on site {}".format(site),
-                events.select("patientID").distinct(),
-                events,
-            )
-
-
-def read_parameters() -> dict:
-    with open("parameters.json", "r") as parameters_file:
-        parameters_json = "".join(parameters_file.readlines())
-        return json.loads(parameters_json)
-
-
-def clean_followup(follow_up: Cohort, valid_start, valid_stop) -> Cohort:
-    clean = follow_up.events.where((valid_start & valid_stop))
-    return Cohort("Clean_fup", "clean fup", clean.select("patientID").distinct(), clean)
-
-
-def keep_first_outcome(outcomes: Cohort) -> Cohort:
-    window = Window.partitionBy("patientID").orderBy("start")
-    events = (
-        outcomes.events.withColumn("rn", sf.row_number().over(window))
-        .where(sf.col("rn") == 1)
-        .drop("rn")
-    )
-    return Cohort(
-        outcomes.name,
-        outcomes.characteristics,
-        events.select("patientID").distinct(),
-        events,
-    )
 
 
 def delete_prevalent(outcomes: Cohort, followup: Cohort) -> Cohort:
@@ -496,86 +217,6 @@ def cache_metadata(metadata: Metadata) -> Metadata:
     return metadata
 
 
-def prepare_metadata() -> Metadata:
-    logger = get_logger()
-
-    valid_start = sf.col("start").between(STUDY_START, STUDY_END)
-
-    logger.info("Reading parameters")
-    parameters = read_parameters()
-    json_file_path = parameters["path"]
-
-    gender = parameters["gender"]
-    site = parameters["site"]
-    severity = parameters["fracture_severity"]
-    keep_elderly = parameters["keep_elderly"]
-    keep_multi_fractured = parameters["keep_multi_fractured"]
-    keep_multi_admitted = parameters["keep_multi_admitted"]
-    epileptics_control = parameters["epileptics_control"]
-    drugs_control = parameters["drugs_control"]
-
-    logger.info("Reading metadata")
-    md = read_metadata(json_file_path)
-    cache_metadata(md)
-
-    gender_param = GenderParameter(gender)
-    keep_elderly_param = OldSubjectsParameter(keep_elderly)
-    epileptics_control_param = EpilepticsControlParameter(
-        epileptics_control, md.get("epileptics")
-    )
-
-    subjects_parameters = [gender_param, keep_elderly_param, epileptics_control_param]
-
-    site_param = FractureSiteParameter(site)
-    severity_param = FractureSeverityParameter(severity)
-    multi_fractured_param = MultiFracturedParameter(keep_multi_fractured)
-    multi_admitted_param = MultiAdmissionParameter(keep_multi_admitted)
-
-    fracture_parameters = [severity_param, site_param, multi_fractured_param, multi_admitted_param]
-
-    base_cohort = md.get("extract_patients")
-    cache_cohort(base_cohort)
-
-    base_cohort.add_age_information(AGE_REFERENCE_DATE)
-    for param in subjects_parameters:
-        logger.info(param.log())
-        base_cohort = param.filter(base_cohort)
-
-    md.add_cohort("extract_patients", base_cohort)
-
-    outcomes_clean = md.get("fractures").events.where(valid_start).cache()
-
-    outcomes = Cohort(
-        "Clean-fractures",
-        "Subjects with fractures within study start and end",
-        outcomes_clean.select("patientID").distinct(),
-        outcomes_clean,
-    )
-
-    for param in fracture_parameters:
-        logger.info(param.log())
-        outcomes = param.filter(outcomes)
-
-    md.add_cohort("fractures", outcomes)
-
-    exposures = md.get("exposures")
-    drugs_control_param = ControlDrugsParameter(
-        drugs_control, md.get("control_drugs_exposures")
-    )
-
-    exposure_parameters = [drugs_control_param]
-
-    for param in exposure_parameters:
-        logger.info(param.log())
-        exposures = param.filter(exposures)
-    md.add_cohort("exposures", exposures)
-    cache_metadata(md)
-
-    md.add_subjects_information("omit_all", AGE_REFERENCE_DATE)
-    cache_metadata(md)
-    return md
-
-
 # PARAMETERS
 
 metadata_path = "metadata_fall.json"
@@ -591,7 +232,7 @@ if __name__ == "__main__":
     quiet_spark_logger(sqlContext.sparkSession)
     sqlContext.sparkSession.conf.set("spark.sql.session.timeZone", "UTC")
 
-    md = prepare_metadata()
+    md = read_metadata(metadata_path)
     logger = get_logger()
     buffer = md.get("fractures").events
     buffer = buffer.withColumnRenamed("value", "temp")
@@ -612,7 +253,8 @@ if __name__ == "__main__":
     }
     """
     logger.info("Flowchart preparation.")
-    flow = Flowchart.from_json(md, flow_json)
+    flow, md = experience_to_flowchart_metadata(md, read_parameters())
+    md.add_subjects_information("omit_all", AGE_REFERENCE_DATE)
     exposure_steps = flow.create_flowchart(md.get("exposures"))
     fracture_steps = flow.create_flowchart(md.get("fractures"))
 
