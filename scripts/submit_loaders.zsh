@@ -14,5 +14,5 @@ runCommand "spark-submit \
 --conf spark.locality.wait=5s \
 --conf spark.eventLog.enabled=false \
 --conf spark.sql.parquet.compression.codec='uncompressed' \
---py-files ../../dist/exploration.zip \
+--py-files ../../dist/exploration.zip,../../dist/parameters.zip\
 ../../scripts/load_convsscs.py"
