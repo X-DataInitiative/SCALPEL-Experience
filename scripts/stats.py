@@ -28,9 +28,20 @@ from src.exploration.stats.patients import distribution_by_gender_age_bucket
 
 BUCKET_ROUNDING = "ceil"
 RUN_CHECKS = True
-STUDY_START = pytz.datetime.datetime(2014, 1, 1, tzinfo=pytz.UTC)
-STUDY_END = pytz.datetime.datetime(2017, 1, 1, 23, 59, 59, tzinfo=pytz.UTC)
-AGE_REFERENCE_DATE = pytz.datetime.datetime(2017, 1, 1, tzinfo=pytz.UTC)
+STUDY_START = pytz.datetime.datetime(2013, 12, 31, 23, 59, 59, tzinfo=pytz.UTC)
+STUDY_END = pytz.datetime.datetime(2017, 1, 1, tzinfo=pytz.UTC)
+AGE_REFERENCE_DATE = pytz.datetime.datetime(2015, 1, 1, tzinfo=pytz.UTC)
+
+
+def delete_invalid_events(cohort: Cohort, study_start: pytz.datetime,
+                          study_end:pytz.datetime):
+    valid_start = sf.col('start').between(study_start, study_end)
+    valid_end = sf.col('end').between(study_start, study_end)
+    valid_event = valid_start & valid_end
+    invalid_events = cohort.events.where(~valid_event)
+    blacklist = Cohort("", "", invalid_events.select("patientID").drop_duplicates(),
+                       None)
+    return cohort.difference(blacklist)
 
 
 def delete_prevalent(outcomes: Cohort, followup: Cohort) -> Cohort:
@@ -51,6 +62,18 @@ def delete_prevalent(outcomes: Cohort, followup: Cohort) -> Cohort:
         events=prevalent_events.select(*outcomes.events.columns),
     )
     return outcomes.difference(prevalent_cases)
+
+
+def clean_metadata(metadata: Metadata, study_start: pytz.datetime,
+                   study_end:pytz.datetime) -> Metadata:
+    clean_metadata = {}
+    for k, v in metadata.cohorts:
+        clean_cohort = delete_invalid_events(v, study_start, study_end)
+        if k == "fractures":
+            followups = metadata.get('follow_up')
+            clean_cohort = delete_prevalent(clean_cohort, followups)
+        clean_metadata[k] = v
+    return Metadata(clean_metadata)
 
 
 class Logger:
@@ -105,26 +128,39 @@ def log_number_patients(logger: Logger, cohort: Cohort, step: str):
     return logger(step, "n_patients", n_patients)
 
 
-@register
+# @register
 def gender_distribution(logger: Logger, cohort: Cohort, step: str):
     data = agg(cohort.subjects, frozenset(["gender"]), "count")
     data.gender = data.gender.replace({1: "Male", 2: "Female"})
-    data.columns = ["gender", "n_patients"]
+    data.rename(columns={'count(1)': 'n_patients'}, inplace=True)
     # Sad, but required with old pandas
     gender_distribution = json.loads(data.to_json(orient="records"))
     return logger(step, "gender_distribution", gender_distribution)
 
 
-@register
+# @register
 def distribution_by_age_bucket(logger: Logger, cohort: Cohort, step: str):
     data = agg(cohort.subjects, frozenset(["ageBucket"]), "count").sort_values(
         "ageBucket"
     )
     data.ageBucket = data.ageBucket.map(lambda x: BUCKET_INTEGER_TO_STR[x])
-    data.columns = ["ageBucket", "n_patients"]
+    data.rename(columns={'count(1)': 'n_patients'}, inplace=True)
     # Sad, but required with old pandas
     age_distribution = json.loads(data.to_json(orient="records"))
     return logger(step, "age_distribution", age_distribution)
+
+
+@register
+def distribution_by_age_bucket(logger: Logger, cohort: Cohort, step: str):
+    data = agg(cohort.subjects, frozenset(["gender", "ageBucket"]), "count").sort_values(
+        ["gender", "ageBucket"]
+    )
+    data.gender = data.gender.replace({1: "Male", 2: "Female"})
+    data.ageBucket = data.ageBucket.map(lambda x: BUCKET_INTEGER_TO_STR[x])
+    data.rename(columns={'count(1)': 'n_patients'}, inplace=True)
+    # Sad, but required with old pandas
+    gender_age_distribution = json.loads(data.to_json(orient="records"))
+    return logger(step, "gender_age_distribution", gender_age_distribution)
 
 
 @register
@@ -151,7 +187,7 @@ def log_n_weeks_between_censoring_date_and_first_event_distribution(
         .count()
         .toPandas()
     )
-    data.columns = ["n_weeks", "n_patients"]
+    data.rename(columns={'count(1)': 'n_patients'}, inplace=True)
     # Sad, but required with old pandas
     n_weeks_between_censoring_date_and_first_event_distribution = json.loads(
         data.to_json(orient="records")
@@ -168,13 +204,11 @@ def log_unique_event_distribution_per_patient(
     logger: Logger, cohort: Cohort, step: str
 ):
     """Number of distinct events per subject"""
-    group_columns = ["patientID", "value"]
-    data = agg(cohort.events, frozenset(group_columns), "count")
-    data = _get_distinct(data, group_columns)
-    data = data.groupby("patientID").count().reset_index().groupby("value").count()
-    data.columns = ["n_patients"]
-    data["n_events"] = data.index
-    data.astype("int")
+    data = agg(cohort.events.select('patientID', 'value').drop_duplicates(),
+               frozenset(['patientID']), "count")
+    data.rename(columns={'count(1)': 'n_events'}, inplace=True)
+    data = data.groupby("n_events").count().reset_index()
+    data.rename(columns={'patientID': 'n_patients'}, inplace=True)
     unique_events_distribution_per_patient = json.loads(
         data.to_json(orient="records")
     )  # Sad, but required with old pandas
@@ -186,19 +220,37 @@ def log_unique_event_distribution_per_patient(
 
 
 @register
-def log_patient_distribution_per_unique_event(
-    logger: Logger, cohort: Cohort, step: str
+def log_duration_distribution_per_event_type(
+        logger: Logger, cohort: Cohort, step: str
 ):
-    """Number of distinct patients count per event"""
-    group_columns = ["patientID", "value"]
-    data = _get_distinct(cohort.events, group_columns)
-    data = agg(data[group_columns], frozenset(["value"]), "count")
-    data.columns = ["n_patients", "event_name"]
-    patient_distribution_per_event = json.loads(
-        data.to_json(orient="records")
-    )  # Sad, but required with old pandas
+    """Count number of events per duration for each event type."""
+    assert cohort.is_duration_events()
+    data = agg(cohort.events, frozenset(["value", "duration"]), "count")
+    data.rename(columns={'count(1)': 'n_patients', 'value': 'event_name'}, inplace=True)
+    duration_distribution_per_event_type = json.loads(data.to_json(orient="records"))
     return logger(
-        step, "patient_distribution_per_event", patient_distribution_per_event
+        step, "duration_distribution_per_event_type",
+        duration_distribution_per_event_type
+    )
+
+
+@register
+def log_demographics_per_event_type(
+        logger: Logger, cohort: Cohort, step: str
+):
+    """Age and gender distribution of subjects associated with each event type."""
+    associated_subjects = cohort.events.select('patientID', 'value').drop_duplicates()
+    associated_subjects = associated_subjects.join(cohort.subjects, on='patientID',
+                                                   how='left')
+    data = agg(associated_subjects, frozenset(['value', 'gender', 'ageBucket']),
+               "count")
+    data.gender = data.gender.replace({1: "Male", 2: "Female"})
+    data.ageBucket = data.ageBucket.map(lambda x: BUCKET_INTEGER_TO_STR[x])
+    data.rename(columns={'count(1)': 'n_patients'}, inplace=True)
+    demographics_per_event_type = json.loads(data.to_json(orient="records"))
+    return logger(
+        step, "demographics_per_event_type",
+        demographics_per_event_type
     )
 
 
@@ -216,7 +268,6 @@ def cache_metadata(metadata: Metadata) -> Metadata:
 
     return metadata
 
-
 # PARAMETERS
 
 metadata_path = "metadata_fall.json"
@@ -233,6 +284,9 @@ if __name__ == "__main__":
     sqlContext.sparkSession.conf.set("spark.sql.session.timeZone", "UTC")
 
     md = read_metadata(metadata_path)
+    
+    md = clean_metadata(md, STUDY_START, STUDY_END)
+    
     logger = get_logger()
     buffer = md.get("fractures").events
     buffer = buffer.withColumnRenamed("value", "temp")
@@ -255,36 +309,28 @@ if __name__ == "__main__":
     logger.info("Flowchart preparation.")
     flow, md = experience_to_flowchart_metadata(md, read_parameters())
     md.add_subjects_information("omit_all", AGE_REFERENCE_DATE)
-    exposure_steps = flow.create_flowchart(md.get("exposures"))
-    fracture_steps = flow.create_flowchart(md.get("fractures"))
-
-    plot_functions = [
-        distribution_by_gender_age_bucket,
-        plot_patient_distribution_per_unique_event,
-        plot_unique_event_distribution_per_patient,
-    ]
-
-    logger.info("Saving stats to PDF files.")
-    # Save plots in pdf
-    save_plots(plot_functions, exposure_plots, exposure_steps, figsize=(16, 9))
-    save_plots(plot_functions, fracture_plots, fracture_steps, figsize=(16, 9))
+    exposures = md.get("exposures")
+    fractures = md.get("fractures")
+    exposures.add_duration_information()
+    exposure_steps = flow.create_flowchart(exposures)
+    fracture_steps = flow.create_flowchart(fractures)
 
     # Log stats
     logger.info("Logging stats to json files.")
+
+    # Stats on exposures
     log_steps = json.loads(flow_json)["steps"]
     log = Logger(log_steps, prefix="exposures")
-
     for step_name, cohort in zip(log_steps, exposure_steps):
         for log_func in registry:
             log_func(log, cohort, step_name)
-
+        log_duration_distribution_per_event_type(log, cohort, step_name)
     log.save(exposure_logs)
 
+    # Stats on fractures
     log_steps = json.loads(flow_json)["steps"]
     log = Logger(log_steps, prefix="fractures")
-
     for step_name, cohort in zip(log_steps, exposure_steps):
         for log_func in registry:
             log_func(log, cohort, step_name)
-
     log.save(fracture_logs)

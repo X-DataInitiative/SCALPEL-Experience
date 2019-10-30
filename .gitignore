@@ -1,0 +1,13 @@
+
+
+\.idea/
+
+src/libs/
+
+test\.py
+
+*.pyc
+
+*.log
+
+\.coverage
