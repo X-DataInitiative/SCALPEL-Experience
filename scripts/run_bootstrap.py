@@ -25,7 +25,7 @@ def write_json(obj, filepath):
 
 
 def read_json(filepath):
-    with open(filepath, "w") as file:
+    with open(filepath, "r") as file:
         data = json.load(file)
     return data
 
@@ -65,11 +65,11 @@ if __name__ == "__main__":
         print_every=10,
         tol=1e-5,
         threads=15,
-        c_tv=c_tv,
-        c_group_l1=c_group_l1,
+        C_tv=c_tv,
+        C_group_l1=c_group_l1,
     )
 
-    estimates, bootstrap = model.fit(features, labels, censoring,
+    estimates, bootstrap = model.fit(X, y, c,
                                      confidence_intervals=True,
                                      n_samples_bootstrap=100)
 

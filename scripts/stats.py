@@ -65,14 +65,19 @@ def delete_prevalent(outcomes: Cohort, followup: Cohort) -> Cohort:
 
 
 def clean_metadata(metadata: Metadata, study_start: pytz.datetime,
-                   study_end:pytz.datetime) -> Metadata:
+                   study_end: pytz.datetime) -> Metadata:
     clean_metadata = {}
-    for k, v in metadata.cohorts:
-        clean_cohort = delete_invalid_events(v, study_start, study_end)
-        if k == "fractures":
-            followups = metadata.get('follow_up')
-            clean_cohort = delete_prevalent(clean_cohort, followups)
-        clean_metadata[k] = v
+    cohorts = metadata.cohorts_names()
+    for k in cohorts:
+        v = metadata.get(k)
+        if v.events is not None:
+            clean_cohort = delete_invalid_events(v, study_start, study_end)
+            if k == "fractures":
+                followups = metadata.get('follow_up')
+                clean_cohort = delete_prevalent(clean_cohort, followups)
+        else:
+            clean_cohort = v
+        clean_metadata[k] = clean_cohort
     return Metadata(clean_metadata)
 
 
@@ -219,7 +224,6 @@ def log_unique_event_distribution_per_patient(
     )
 
 
-@register
 def log_duration_distribution_per_event_type(
         logger: Logger, cohort: Cohort, step: str
 ):
@@ -284,7 +288,6 @@ if __name__ == "__main__":
     sqlContext.sparkSession.conf.set("spark.sql.session.timeZone", "UTC")
 
     md = read_metadata(metadata_path)
-    
     md = clean_metadata(md, STUDY_START, STUDY_END)
     
     logger = get_logger()
@@ -294,18 +297,6 @@ if __name__ == "__main__":
     buffer = buffer.withColumnRenamed("temp", "groupID")
     md.get("fractures").events = buffer
 
-    flow_json = """
-    {
-        "intermediate_operations": {
-        },
-        "steps": [
-            "extract_patients",
-            "exposures",
-            "filter_patients",
-            "fractures"
-        ]
-    }
-    """
     logger.info("Flowchart preparation.")
     flow, md = experience_to_flowchart_metadata(md, read_parameters())
     md.add_subjects_information("omit_all", AGE_REFERENCE_DATE)
@@ -319,18 +310,20 @@ if __name__ == "__main__":
     logger.info("Logging stats to json files.")
 
     # Stats on exposures
-    log_steps = json.loads(flow_json)["steps"]
+    log_steps = [c.name for c in exposure_steps.steps]
     log = Logger(log_steps, prefix="exposures")
-    for step_name, cohort in zip(log_steps, exposure_steps):
+    for cohort in exposure_steps.steps:
+        step_name = cohort.name
         for log_func in registry:
             log_func(log, cohort, step_name)
         log_duration_distribution_per_event_type(log, cohort, step_name)
     log.save(exposure_logs)
 
     # Stats on fractures
-    log_steps = json.loads(flow_json)["steps"]
+    log_steps = [c.name for c in fracture_steps.steps]
     log = Logger(log_steps, prefix="fractures")
-    for step_name, cohort in zip(log_steps, exposure_steps):
+    for cohort in fracture_steps.steps:
+        step_name = cohort.name
         for log_func in registry:
             log_func(log, cohort, step_name)
     log.save(fracture_logs)
