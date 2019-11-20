@@ -298,13 +298,17 @@ if __name__ == "__main__":
     md.get("fractures").events = buffer
 
     logger.info("Flowchart preparation.")
-    flow, md = experience_to_flowchart_metadata(md, read_parameters())
     md.add_subjects_information("omit_all", AGE_REFERENCE_DATE)
+    flow, md = experience_to_flowchart_metadata(md, read_parameters())
     exposures = md.get("exposures")
+    base_exposure = Cohort('all_exposed_patients', "", exposures.subjects,
+                           exposures.events)
+    base_exposure.add_duration_information()
     fractures = md.get("fractures")
-    exposures.add_duration_information()
-    exposure_steps = flow.create_flowchart(exposures)
-    fracture_steps = flow.create_flowchart(fractures)
+    base_fracture = Cohort('all_fracture cases', "", fractures.subjects,
+                           fractures.events)
+    exposure_steps = flow.create_flowchart(base_exposure)
+    fracture_steps = flow.create_flowchart(base_fracture)
 
     # Log stats
     logger.info("Logging stats to json files.")
