@@ -1,4 +1,5 @@
 from src.exploration.core.cohort import Cohort
+from src.exploration.core.metadata import Metadata
 
 from parameters.parameter import Parameter
 import pyspark.sql.functions as sf
@@ -60,9 +61,9 @@ class OldSubjectsParameter(Parameter):
 
 
 class EpilepticsControlParameter(Parameter):
-    def __init__(self, value, epileptics: Cohort):
+    def __init__(self, value, md: Metadata):
         super().__init__(value)
-        self.epileptics = epileptics
+        self.md = md
 
     @property
     def change_input(self):
@@ -77,6 +78,7 @@ class EpilepticsControlParameter(Parameter):
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value:
-            return cohort.difference(self.epileptics)
+            epileptics = self.md.get('epileptics')
+            return cohort.difference(epileptics)
         else:
             return cohort

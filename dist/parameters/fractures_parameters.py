@@ -22,7 +22,8 @@ class FractureSiteParameter(Parameter):
         if self.value == "all":
             return fractures
         else:
-            events = fractures.events.where(sf.col("groupID").isin(self.value))
+            # events = fractures.events.where(sf.col("groupID").isin(self.value))
+            events = fractures.events.where(sf.col("value").isin(self.value))  # Cf. we changed GroupID to Value in stats.py script
             if events.count() == 0:
                 raise ValueError(
                     "Le site {} n'existe pas dans la cohorte de fractures".format(

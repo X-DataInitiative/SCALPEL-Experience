@@ -124,7 +124,7 @@ def get_patients_parameters(parameters: Dict, metadata: Metadata) -> List[Parame
     gender_param = GenderParameter(gender)
     keep_elderly_param = OldSubjectsParameter(keep_elderly)
     epileptics_control_param = EpilepticsControlParameter(
-        epileptics_control, metadata.get("epileptics")
+        epileptics_control, metadata
     )
 
     return [gender_param, keep_elderly_param, epileptics_control_param]
