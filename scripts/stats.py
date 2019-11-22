@@ -15,7 +15,8 @@ import json
 import pyspark.sql.functions as sf
 import pytz
 from src.exploration.core.cohort import Cohort
-from src.exploration.core.io import get_logger, get_spark_context, quiet_spark_logger
+from src.exploration.core.io import get_logger, quiet_spark_logger, \
+    get_sql_context
 from src.exploration.core.metadata import Metadata
 from src.exploration.core.util import rename_df_columns
 import pandas as pd
@@ -274,7 +275,7 @@ fracture_logs = "fracture_logs.json"
 # END PARAMETERS
 
 if __name__ == "__main__":
-    sqlContext = get_spark_context()
+    sqlContext = get_sql_context()
     quiet_spark_logger(sqlContext.sparkSession)
     sqlContext.sparkSession.conf.set("spark.sql.session.timeZone", "UTC")
 
@@ -305,10 +306,10 @@ if __name__ == "__main__":
     base_fracture = Cohort(
         "all_fracture cases", "", fractures.subjects, fractures.events
     )
-    logger.info("Exposure Flowchart")
-    exposure_steps = flow.prepend_cohort(base_exposure)
     logger.info("Fractures Flowchart")
     fracture_steps = flow.prepend_cohort(base_fracture)
+    logger.info("Exposure Flowchart")
+    exposure_steps = flow.prepend_cohort(base_exposure)
 
     # Log stats
     logger.info("Logging stats to json files.")
