@@ -142,10 +142,6 @@ def get_cohort_parameters_tuple_list(
     )
 
     cohort_parameters.append(
-        (metadata.get(FOLLOWUP_NAME), get_followup_parameters(parameters, metadata))
-    )
-
-    cohort_parameters.append(
         (metadata.get(EXPOSURES_NAME), get_exposures_parameters(parameters, metadata))
     )
 
