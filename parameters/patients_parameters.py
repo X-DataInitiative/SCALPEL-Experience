@@ -1,5 +1,6 @@
 from src.exploration.core.cohort import Cohort
 
+from parameters.experience import AGE_REFERENCE_DATE
 from parameters.parameter import Parameter
 import pyspark.sql.functions as sf
 
@@ -55,6 +56,7 @@ class OldSubjectsParameter(Parameter):
         if self.value is True:
             return cohort
         else:
+            cohort.add_age_information(AGE_REFERENCE_DATE)
             young_subjects = cohort.subjects.where(sf.col("age") < 85)
             return Cohort("Young subjects", "Young subjects", young_subjects, None)
 
@@ -77,6 +79,8 @@ class EpilepticsControlParameter(Parameter):
 
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value:
-            return cohort.difference(self.epileptics)
+            new_cohort = cohort.difference(self.epileptics)
+            new_cohort.name = "{} without Epileptics".format(cohort.name)
+            return new_cohort
         else:
             return cohort

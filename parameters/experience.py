@@ -3,6 +3,9 @@ from typing import Dict, List, Tuple
 
 import pyspark.sql.functions as sf
 import pytz
+
+AGE_REFERENCE_DATE = pytz.datetime.datetime(2015, 1, 1, tzinfo=pytz.UTC)
+
 from src.exploration.core.cohort import Cohort
 from src.exploration.core.flowchart import Flowchart
 from src.exploration.core.io import get_logger
@@ -29,8 +32,8 @@ EXPOSURES_NAME = "exposures"
 EXTRACT_PATIENTS_NAME = "extract_patients"
 FILTER_PATIENTS_NAME = "filter_patients"
 FRACTURES_NAME = "fractures"
-STUDY_START = pytz.datetime.datetime(2010, 1, 1, tzinfo=pytz.UTC)
-STUDY_END = pytz.datetime.datetime(2015, 1, 1, 23, 59, 59, tzinfo=pytz.UTC)
+STUDY_START = pytz.datetime.datetime(2013, 12, 31, 23, 59, 59, tzinfo=pytz.UTC)
+STUDY_END = pytz.datetime.datetime(2017, 1, 1, tzinfo=pytz.UTC)
 
 
 def read_parameters() -> dict:
@@ -143,6 +146,10 @@ def get_cohort_parameters_tuple_list(
     )
 
     cohort_parameters.append(
+        (metadata.get(EXPOSURES_NAME), get_exposures_parameters(parameters, metadata))
+    )
+
+    cohort_parameters.append(
         (
             metadata.get(FILTER_PATIENTS_NAME),
             get_patients_parameters(parameters, metadata),
@@ -170,6 +177,8 @@ def add_additional_flowchart_steps(
     for cohort, parameters in cohort_parameters_list:
         for parameter in parameters:
             new_cohort = parameter.filter(cohort)
+            get_logger().info(parameter.log())
+            get_logger().info("Involved subjects number {}".format(new_cohort.subjects.count()))
             if parameter.change_input:
                 initial_flowchart.append(new_cohort)
                 new_metadata.add_cohort(new_cohort.name, new_cohort)
