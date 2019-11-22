@@ -32,7 +32,7 @@ class FractureSiteParameter(Parameter):
                 )
             else:
                 return Cohort(
-                    "Fractures on {}".format(self.value),
+                    "Fractures_on_{}".format(self.value),
                     "Subjects with fractures on site {}".format(self.value),
                     events.select("patientID").distinct(),
                     events,
@@ -65,7 +65,7 @@ class FractureSeverityParameter(Parameter):
                 )
             else:
                 return Cohort(
-                    "Fractures with severity {}".format(self.value),
+                    "Fractures_with_severity_{}".format(self.value),
                     "Subjects with fractures with severity {}".format(self.value),
                     events.select("patientID").distinct(),
                     events,
@@ -100,7 +100,7 @@ class MultiFracturedParameter(Parameter):
                 fractured_once_per_admission, "patientID"
             )
             return Cohort(
-                "Fractured once per admission",
+                "Fractured_once_per_admission",
                 "{} that has only one fracture per admission".format(
                     cohort.characteristics
                 ),
@@ -135,7 +135,7 @@ class MultiAdmissionParameter(Parameter):
             )
             new_fractures = cohort.events.join(admitted_once, "patientID")
             return Cohort(
-                "Admitted once fractures",
+                "Admitted_once_fractures",
                 "{} that has only one admission for fracture".format(
                     cohort.characteristics
                 ),
@@ -167,7 +167,7 @@ class FirstAdmissionOnly(Parameter):
             .drop("rn")
         )
         return Cohort(
-            "First admission fractures only",
+            "First_admission_fractures_only",
             "Subjects with first admission fractures",
             events.select("patientID").distinct(),
             events,

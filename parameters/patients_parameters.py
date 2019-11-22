@@ -79,6 +79,8 @@ class EpilepticsControlParameter(Parameter):
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value:
             epileptics = self.md.get('epileptics')
-            return cohort.difference(epileptics)
+            new_cohort = cohort.difference(epileptics)
+            new_cohort.name = epileptics.name
+            return new_cohort
         else:
             return cohort

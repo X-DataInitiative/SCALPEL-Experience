@@ -29,8 +29,9 @@ EXPOSURES_NAME = "exposures"
 EXTRACT_PATIENTS_NAME = "extract_patients"
 FILTER_PATIENTS_NAME = "filter_patients"
 FRACTURES_NAME = "fractures"
-STUDY_START = pytz.datetime.datetime(2010, 1, 1, tzinfo=pytz.UTC)
-STUDY_END = pytz.datetime.datetime(2015, 1, 1, 23, 59, 59, tzinfo=pytz.UTC)
+STUDY_START = pytz.datetime.datetime(2013, 12, 31, 23, 59, 59, tzinfo=pytz.UTC)
+STUDY_END = pytz.datetime.datetime(2017, 1, 1, tzinfo=pytz.UTC)
+AGE_REFERENCE_DATE = pytz.datetime.datetime(2015, 1, 1, tzinfo=pytz.UTC)
 
 
 def read_parameters() -> dict:

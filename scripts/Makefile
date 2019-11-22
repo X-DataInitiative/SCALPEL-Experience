@@ -31,7 +31,7 @@ submit-stats:
 run-models:
 		cd ../experiments && zsh ../scripts/run_model.zsh
 
-run-models:
+run-bootstrap:
 		cd ../experiments && zsh ../scripts/run_bootstrap.zsh
 
 clean:

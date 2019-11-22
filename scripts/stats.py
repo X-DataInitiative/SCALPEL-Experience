@@ -16,14 +16,9 @@ from src.exploration.core.io import get_logger, get_spark_context, quiet_spark_l
 from src.exploration.core.metadata import Metadata
 from src.exploration.core.util import rename_df_columns
 import pandas as pd
-from src.exploration.core.decorators import save_plots
-from src.exploration.stats.event_patient_distribution import (
-    plot_patient_distribution_per_unique_event,
-    plot_unique_event_distribution_per_patient,
-)
 from src.exploration.stats.graph_utils import BUCKET_INTEGER_TO_STR
 from src.exploration.stats.grouper import agg
-from src.exploration.stats.patients import distribution_by_gender_age_bucket
+
 
 
 BUCKET_ROUNDING = "ceil"
@@ -262,14 +257,12 @@ def cache_cohort(cohort: Cohort) -> Cohort:
     cohort.subjects.cache()
     if cohort.events is not None:
         cohort.events.cache()
-
     return Cohort
 
 
 def cache_metadata(metadata: Metadata) -> Metadata:
     for cohort in metadata:
         cache_cohort(metadata.get(cohort))
-
     return metadata
 
 # PARAMETERS
@@ -300,6 +293,7 @@ if __name__ == "__main__":
     logger.info("Flowchart preparation.")
     md.add_subjects_information("omit_all", AGE_REFERENCE_DATE)
     flow, md = experience_to_flowchart_metadata(md, read_parameters())
+    md.add_subjects_information("omit_all", AGE_REFERENCE_DATE) ### HEHREHEHRHEHREH
     exposures = md.get("exposures")
     base_exposure = Cohort('all_exposed_patients', "", exposures.subjects,
                            exposures.events)
@@ -307,8 +301,8 @@ if __name__ == "__main__":
     fractures = md.get("fractures")
     base_fracture = Cohort('all_fracture cases', "", fractures.subjects,
                            fractures.events)
-    exposure_steps = flow.create_flowchart(base_exposure)
-    fracture_steps = flow.create_flowchart(base_fracture)
+    exposure_steps = flow.prepend_cohort(base_exposure)
+    fracture_steps = flow.prepend_cohort(base_fracture)
 
     # Log stats
     logger.info("Logging stats to json files.")
@@ -317,6 +311,7 @@ if __name__ == "__main__":
     log_steps = [c.name for c in exposure_steps.steps]
     log = Logger(log_steps, prefix="exposures")
     for cohort in exposure_steps.steps:
+        cache_cohort(cohort)
         step_name = cohort.name
         for log_func in registry:
             log_func(log, cohort, step_name)
@@ -327,6 +322,7 @@ if __name__ == "__main__":
     log_steps = [c.name for c in fracture_steps.steps]
     log = Logger(log_steps, prefix="fractures")
     for cohort in fracture_steps.steps:
+        cache_cohort(cohort)
         step_name = cohort.name
         for log_func in registry:
             log_func(log, cohort, step_name)

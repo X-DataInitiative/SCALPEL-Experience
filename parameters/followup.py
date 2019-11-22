@@ -18,7 +18,7 @@ class CleanFollowUp(Parameter):
     def filter(self, follow_up: Cohort) -> Cohort:
         clean = follow_up.events.where(self.value)
         return Cohort(
-            "FollowUp within study bounds.",
+            "FollowUp_within_study_bounds.",
             "Subjects with FollowUp with study bounds",
             clean.select("patientID").distinct(),
             clean,
