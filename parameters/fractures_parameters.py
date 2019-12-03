@@ -1,7 +1,7 @@
 import pyspark.sql.functions as sf
 from pyspark.sql import Window
 
-from src.exploration.core.cohort import Cohort
+from scalpel.core.cohort import Cohort
 
 from parameters.parameter import Parameter
 

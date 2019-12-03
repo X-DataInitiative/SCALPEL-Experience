@@ -3,13 +3,19 @@ import pickle
 import numpy as np
 import pyspark.sql.functions as sf
 import pytz
-from src.exploration.core.cohort import Cohort
-from src.exploration.core.io import get_logger, get_spark_context, quiet_spark_logger
-from src.exploration.core.util import rename_df_columns
-from src.exploration.loaders import ConvSccsLoader
+from scalpel.core.cohort import Cohort
+from scalpel.core.io import get_logger, get_spark_context, quiet_spark_logger
+from scalpel.core.util import rename_df_columns
+from scalpel.drivers.conv_sccs import ConvSccsFeatureDriver
 
-from parameters.experience import (get_exposures, get_fractures, get_subjects,
-                                   get_the_followup, read_metadata, read_parameters)
+from parameters.experience import (
+    get_exposures,
+    get_fractures,
+    get_subjects,
+    get_the_followup,
+    read_cohort_collection,
+    read_parameters,
+)
 
 BUCKET_ROUNDING = "ceil"
 RUN_CHECKS = True
@@ -56,10 +62,18 @@ def main():
     parameters = read_parameters()
     logger.info("Reading metadata")
     json_file_path = parameters["path"]
-    md = read_metadata(json_file_path)
+    md = read_cohort_collection(json_file_path)
 
     clean_outcomes = md.get("fractures").events.where(valid_start)
-    md = md.add_cohort("fractures", Cohort("fractures", "Subjects with fractures", clean_outcomes.select("patientID").distinct(), clean_outcomes))
+    md = md.add_cohort(
+        "fractures",
+        Cohort(
+            "fractures",
+            "Subjects with fractures",
+            clean_outcomes.select("patientID").distinct(),
+            clean_outcomes,
+        ),
+    )
 
     logger.info("Add age information to patients")
     md.add_subjects_information("omit_all", AGE_REFERENCE_DATE)
@@ -79,7 +93,7 @@ def main():
     logger.debug("Min base subject count {}".format(min_base.subjects.count()))
 
     min_incident_out = delete_prevalent(min_out, min_fup)
-    loader = ConvSccsLoader(
+    loader = ConvSccsFeatureDriver(
         min_base,
         min_fup,
         min_exp,

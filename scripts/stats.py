@@ -1,27 +1,25 @@
 import matplotlib
-
-from parameters.experience import (
-    read_metadata,
-    read_parameters,
-    experience_to_flowchart_metadata,
-    STUDY_END,
-    STUDY_START,
-    AGE_REFERENCE_DATE
-)
-
-matplotlib.use("Agg")
 import json
 
 import pyspark.sql.functions as sf
 import pytz
-from src.exploration.core.cohort import Cohort
-from src.exploration.core.io import get_logger, quiet_spark_logger, \
-    get_sql_context
-from src.exploration.core.metadata import Metadata
-from src.exploration.core.util import rename_df_columns
+
+from scalpel.core.cohort import Cohort
+from scalpel.core.io import get_logger, quiet_spark_logger, get_sql_context
+from scalpel.core.cohort_collection import CohortCollection
+from scalpel.core.util import rename_df_columns
 import pandas as pd
-from src.exploration.stats.graph_utils import BUCKET_INTEGER_TO_STR
-from src.exploration.stats.grouper import agg
+from scalpel.stats.graph_utils import BUCKET_INTEGER_TO_STR
+from scalpel.stats.grouper import agg
+
+from parameters.experience import (
+    read_cohort_collection,
+    read_parameters,
+    experience_to_flowchart_metadata,
+)
+from parameters.fall_parameters import STUDY_END, STUDY_START, AGE_REFERENCE_DATE
+
+matplotlib.use("Agg")
 
 
 def delete_invalid_events(
@@ -58,21 +56,21 @@ def delete_prevalent(outcomes: Cohort, followup: Cohort) -> Cohort:
 
 
 def clean_metadata(
-    metadata: Metadata, study_start: pytz.datetime, study_end: pytz.datetime
-) -> Metadata:
-    clean_metadata = {}
-    cohorts = metadata.cohorts_names()
+    cc: CohortCollection, study_start: pytz.datetime, study_end: pytz.datetime
+) -> CohortCollection:
+    clean_cc = {}
+    cohorts = cc.cohorts_names()
     for k in cohorts:
-        v = metadata.get(k)
+        v = cc.get(k)
         if v.events is not None:
             clean_cohort = delete_invalid_events(v, study_start, study_end)
             if k == "fractures":
-                followups = metadata.get("follow_up")
+                followups = cc.get("follow_up")
                 clean_cohort = delete_prevalent(clean_cohort, followups)
         else:
             clean_cohort = v
-        clean_metadata[k] = clean_cohort
-    return Metadata(clean_metadata)
+        clean_cc[k] = clean_cohort
+    return CohortCollection(clean_cc)
 
 
 class Logger:
@@ -258,7 +256,7 @@ def cache_cohort(cohort: Cohort) -> Cohort:
     return cohort
 
 
-def cache_metadata(metadata: Metadata) -> Metadata:
+def cache_metadata(metadata: CohortCollection) -> CohortCollection:
     for cohort in metadata:
         cache_cohort(metadata.get(cohort))
     return metadata
@@ -279,7 +277,9 @@ if __name__ == "__main__":
     quiet_spark_logger(sqlContext.sparkSession)
     sqlContext.sparkSession.conf.set("spark.sql.session.timeZone", "UTC")
 
-    old_md = clean_metadata(read_metadata(metadata_path), STUDY_START, STUDY_END)
+    old_md = clean_metadata(
+        read_cohort_collection(metadata_path), STUDY_START, STUDY_END
+    )
 
     logger = get_logger()
     buffer = old_md.get("fractures").events

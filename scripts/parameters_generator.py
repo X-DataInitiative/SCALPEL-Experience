@@ -137,4 +137,14 @@ def generate_parameters(
 if __name__ == "__main__":
     json_file_path = ["metadata_fall.json"]
 
-    generate_parameters(json_file_path, fracture_severities=[[3], [3, 2], [4], [3, 2, 4]])
+    generate_parameters(
+        json_file_path,
+        gender_list=["homme"],
+        sites=["ColDeFemur"],
+        fracture_severities=["3"],
+        keep_elderly=[False],
+        keep_multi_fractured=[False],
+        keep_multi_admitted=[False],
+        epileptics_controls=[True],
+        drugs_controls=[True]
+    )

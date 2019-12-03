@@ -1,4 +1,4 @@
-from src.exploration.core.cohort import Cohort
+from scalpel.core.cohort import Cohort
 
 from parameters.experience import AGE_REFERENCE_DATE
 from parameters.parameter import Parameter
