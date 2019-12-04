@@ -74,19 +74,18 @@ def main():
     )
 
     logger.info("Add age information to patients")
-    md.add_subjects_information("omit_all", AGE_REFERENCE_DATE)
 
-    base_cohort = get_subjects(md, parameters)
-    outcomes = get_fractures(md, parameters)
-    followup = get_the_followup(md, parameters)
+    base_cohort = get_subjects(md, parameters).cache()
+    outcomes = get_fractures(md, parameters).cache()
+    followup = get_the_followup(md, parameters).cache()
     exposures = md.get("interactions")
 
-    min_base = base_cohort.intersect_all([followup, exposures, outcomes])
+    min_base = base_cohort.intersect_all([followup, exposures, outcomes]).cache()
     min_base.add_subject_information(base_cohort, "omit_all")
 
-    min_exp = exposures.intersection(min_base)
-    min_out = outcomes.intersection(min_base)
-    min_fup = followup.intersection(min_base)
+    min_exp = exposures.intersection(min_base).cache()
+    min_out = outcomes.intersection(min_base).cache()
+    min_fup = followup.intersection(min_base).cache()
 
     logger.debug("Min base subject count {}".format(min_base.subjects.count()))
 
