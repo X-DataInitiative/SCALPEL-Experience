@@ -1,8 +1,9 @@
+import pyspark.sql.functions as sf
+
 from scalpel.core.cohort import Cohort
 
-from parameters.experience import AGE_REFERENCE_DATE
+from parameters.fall_parameters import AGE_REFERENCE_DATE
 from parameters.parameter import Parameter
-import pyspark.sql.functions as sf
 
 
 class GenderParameter(Parameter):

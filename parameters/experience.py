@@ -23,7 +23,15 @@ from parameters.patients_parameters import (
     GenderParameter,
     OldSubjectsParameter,
 )
-from parameters.fall_parameters import *
+from parameters.fall_parameters import (
+    STUDY_START,
+    STUDY_END,
+    FRACTURES_NAME,
+    EXTRACT_PATIENTS_NAME,
+    EXPOSURES_NAME,
+    FILTER_PATIENTS_NAME,
+    FOLLOWUP_NAME
+)
 
 
 def read_parameters() -> dict:
@@ -55,8 +63,7 @@ def get_the_followup(cc: CohortCollection, parameters: Dict) -> Cohort:
 
 def get_subjects(cc: CohortCollection, parameters: Dict) -> Cohort:
     return apply_successive_parameters(
-        cc.get(FILTER_PATIENTS_NAME),
-        get_patients_parameters(parameters, cc),
+        cc.get(FILTER_PATIENTS_NAME), get_patients_parameters(parameters, cc)
     )
 
 
@@ -132,10 +139,7 @@ def get_cohort_parameters_tuple_list(
     )
 
     cohort_parameters.append(
-        (
-            cc.get(FILTER_PATIENTS_NAME),
-            get_patients_parameters(parameters, cc),
-        )
+        (cc.get(FILTER_PATIENTS_NAME), get_patients_parameters(parameters, cc))
     )
 
     return cohort_parameters
@@ -160,11 +164,15 @@ def add_additional_flowchart_steps(
         for parameter in parameters:
             new_cohort = parameter.filter(cohort)
             get_logger().info(parameter.log())
-            get_logger().info("Involved subjects number {}".format(new_cohort.subjects.count()))
+            get_logger().info(
+                "Involved subjects number {}".format(new_cohort.subjects.count())
+            )
             if parameter.change_input:
                 initial_flowchart.append(new_cohort)
                 new_metadata.add_cohort(new_cohort.name, new_cohort)
-                get_logger().info("Adding cohort {} to CohortFlow".format(new_cohort.name))
+                get_logger().info(
+                    "Adding cohort {} to CohortFlow".format(new_cohort.name)
+                )
 
     return initial_flowchart, new_metadata
 
