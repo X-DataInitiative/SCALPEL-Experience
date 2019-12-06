@@ -10,6 +10,8 @@ help:
 	@echo "clean - delete all experiments. (Shell)"
 	@echo "build-scalpel-analysis - build SCALPEL-Analysis & put it under dist.(Shell)"
 	@echo "build-scalpel-extraction- build SCALPEL-Extraction & put it under dist. MUST HAVE SBT 0.13 installed & Internet.(Shell)"
+	@echo "build-parameters- build parameters module & put it under dist.(Shell)"
+	@echo "build-components- build needed components for this repo.(Shell)"
 
 all: default
 
@@ -41,3 +43,8 @@ build-scalpel-analysis:
 
 build-scalpel-extraction:
 	cd ../SCALPEL-Extraction && sbt 'set assemblyOutputPath in assembly := new File("../dist/extraction.jar")' assembly
+
+build-parameters:
+	cd .. && zip -r ./dist/parameters.zip parameters
+
+build-components: build-scalpel-extraction build-scalpel-analysis build-parameters
