@@ -4,4 +4,4 @@ function runCommand() {
     for d in ./G*/ ; do /bin/zsh -c "(cd "$d" && "$@")"; done
 }
 
-runCommand "python ../../actions/run_model.py"
+runCommand "python ../../scripts/run_model.py"
