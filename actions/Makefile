@@ -17,19 +17,19 @@ parameters-generator:
         cd ../experiments && python ../scripts/parameters_generator.py
 
 submit-extract:
-        cd ../experiments && zsh ../scripts/submit_extract.zsh
+        cd ../experiments && zsh ../actions/submit_extract.zsh
 
 submit-transform:
-        cd ../experiments && zsh ../scripts/submit_transform.zsh
+        cd ../experiments && zsh ../actions/submit_transform.zsh
 
 submit-loaders:
-        cd ../experiments && zsh ../scripts/submit_loaders.zsh
+        cd ../experiments && zsh ../actions/submit_loaders.zsh
 
 submit-stats:
-        cd ../experiments && zsh ../scripts/submit_stats.zsh
+        cd ../experiments && zsh ../actions/submit_stats.zsh
 
 run-models:
-        cd ../experiments && zsh ../scripts/run_model.zsh
+        cd ../experiments && zsh ../actions/run_model.zsh
 
 clean:
       	rm -rf ../experiments

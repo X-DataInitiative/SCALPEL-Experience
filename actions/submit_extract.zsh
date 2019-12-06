@@ -2,7 +2,7 @@
 
 spark-submit \
   --total-executor-cores 160 \
-  --executor-memory 32G \
+  --executor-memory 28G \
   --class fr.polytechnique.cmap.cnam.study.fall.FallMainExtract \
   --conf spark.scheduler.listenerbus.eventqueue.capacity=20000 \
   --conf spark.sql.shuffle.partitions=200\

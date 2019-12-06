@@ -2,11 +2,11 @@ import json
 from typing import Dict, List, Tuple
 
 import pyspark.sql.functions as sf
-import pytz
-from src.exploration.core.cohort import Cohort
-from src.exploration.core.flowchart import Flowchart
-from src.exploration.core.io import get_logger
-from src.exploration.core.metadata import Metadata
+
+from scalpel.core.cohort import Cohort
+from scalpel.core.cohort_flow import CohortFlow
+from scalpel.core.io import get_logger
+from scalpel.core.cohort_collection import CohortCollection
 
 from parameters.exposures_parameters import ControlDrugsParameter
 from parameters.followup import CleanFollowUp
@@ -23,14 +23,15 @@ from parameters.patients_parameters import (
     GenderParameter,
     OldSubjectsParameter,
 )
-
-FOLLOWUP_NAME = "follow_up"
-EXPOSURES_NAME = "exposures"
-EXTRACT_PATIENTS_NAME = "extract_patients"
-FILTER_PATIENTS_NAME = "filter_patients"
-FRACTURES_NAME = "fractures"
-STUDY_START = pytz.datetime.datetime(2010, 1, 1, tzinfo=pytz.UTC)
-STUDY_END = pytz.datetime.datetime(2015, 1, 1, 23, 59, 59, tzinfo=pytz.UTC)
+from parameters.fall_parameters import (
+    STUDY_START,
+    STUDY_END,
+    FRACTURES_NAME,
+    EXTRACT_PATIENTS_NAME,
+    EXPOSURES_NAME,
+    FILTER_PATIENTS_NAME,
+    FOLLOWUP_NAME
+)
 
 
 def read_parameters() -> dict:
@@ -39,10 +40,10 @@ def read_parameters() -> dict:
         return json.loads(parameters_json)
 
 
-def read_metadata(file_path: str) -> Metadata:
+def read_cohort_collection(file_path: str) -> CohortCollection:
     with open(file_path, "r") as metadata_file:
         metadata_txt = "".join(metadata_file.readlines())
-        return Metadata.from_json(metadata_txt)
+        return CohortCollection.from_json(metadata_txt)
 
 
 def apply_successive_parameters(cohort: Cohort, parameters: List[Parameter]) -> Cohort:
@@ -54,41 +55,40 @@ def apply_successive_parameters(cohort: Cohort, parameters: List[Parameter]) -> 
     return new_cohort
 
 
-def get_the_followup(metadata: Metadata, parameters: Dict) -> Cohort:
+def get_the_followup(cc: CohortCollection, parameters: Dict) -> Cohort:
     return apply_successive_parameters(
-        metadata.get(FOLLOWUP_NAME), get_followup_parameters(parameters, metadata)
+        cc.get(FOLLOWUP_NAME), get_followup_parameters(parameters, cc)
     )
 
 
-def get_subjects(metadata: Metadata, parameters: Dict) -> Cohort:
+def get_subjects(cc: CohortCollection, parameters: Dict) -> Cohort:
     return apply_successive_parameters(
-        metadata.get(FILTER_PATIENTS_NAME),
-        get_patients_parameters(parameters, metadata),
+        cc.get(FILTER_PATIENTS_NAME), get_patients_parameters(parameters, cc)
     )
 
 
-def get_fractures(metadata: Metadata, parameters: Dict) -> Cohort:
+def get_fractures(cc: CohortCollection, parameters: Dict) -> Cohort:
     return apply_successive_parameters(
-        metadata.get(FRACTURES_NAME), get_fractures_parameters(parameters, metadata)
+        cc.get(FRACTURES_NAME), get_fractures_parameters(parameters, cc)
     )
 
 
-def get_exposures(metadata: Metadata, parameters: Dict) -> Cohort:
+def get_exposures(cc: CohortCollection, parameters: Dict) -> Cohort:
     return apply_successive_parameters(
-        metadata.get(EXPOSURES_NAME), get_exposures_parameters(parameters, metadata)
+        cc.get(EXPOSURES_NAME), get_exposures_parameters(parameters, cc)
     )
 
 
-def get_exposures_parameters(parameters: Dict, metadata: Metadata) -> List[Parameter]:
+def get_exposures_parameters(parameters: Dict, cc: CohortCollection) -> List[Parameter]:
     drugs_control = parameters["drugs_control"]
     drugs_control_param = ControlDrugsParameter(
-        drugs_control, metadata.get("control_drugs_exposures")
+        drugs_control, cc.get("control_drugs_exposures")
     )
 
     return [drugs_control_param]
 
 
-def get_fractures_parameters(parameters: Dict, metadata: Metadata) -> List[Parameter]:
+def get_fractures_parameters(parameters: Dict, cc: CohortCollection) -> List[Parameter]:
     site = parameters["site"]
     severity = parameters["fracture_severity"]
     keep_multi_fractured = parameters["keep_multi_fractured"]
@@ -109,14 +109,14 @@ def get_fractures_parameters(parameters: Dict, metadata: Metadata) -> List[Param
     ]
 
 
-def get_followup_parameters(parameters: Dict, metadata: Metadata) -> List[Parameter]:
+def get_followup_parameters(parameters: Dict, cc: CohortCollection) -> List[Parameter]:
     valid_start = sf.col("start").between(STUDY_START, STUDY_END)
     valid_stop = sf.col("end").between(STUDY_START, STUDY_END)
 
     return [CleanFollowUp(valid_start & valid_stop)]
 
 
-def get_patients_parameters(parameters: Dict, metadata: Metadata) -> List[Parameter]:
+def get_patients_parameters(parameters: Dict, cc: CohortCollection) -> List[Parameter]:
     keep_elderly = parameters["keep_elderly"]
     epileptics_control = parameters["epileptics_control"]
     gender = parameters["gender"]
@@ -124,66 +124,65 @@ def get_patients_parameters(parameters: Dict, metadata: Metadata) -> List[Parame
     gender_param = GenderParameter(gender)
     keep_elderly_param = OldSubjectsParameter(keep_elderly)
     epileptics_control_param = EpilepticsControlParameter(
-        epileptics_control, metadata.get("epileptics")
+        epileptics_control, cc.get("epileptics")
     )
 
     return [gender_param, keep_elderly_param, epileptics_control_param]
 
 
 def get_cohort_parameters_tuple_list(
-    metadata: Metadata, parameters: Dict
+    cc: CohortCollection, parameters: Dict
 ) -> List[Tuple[Cohort, List[Parameter]]]:
     cohort_parameters = list()
     cohort_parameters.append(
-        (metadata.get(FRACTURES_NAME), get_fractures_parameters(parameters, metadata))
+        (cc.get(FRACTURES_NAME), get_fractures_parameters(parameters, cc))
     )
 
     cohort_parameters.append(
-        (metadata.get(FOLLOWUP_NAME), get_followup_parameters(parameters, metadata))
-    )
-
-    cohort_parameters.append(
-        (
-            metadata.get(FILTER_PATIENTS_NAME),
-            get_patients_parameters(parameters, metadata),
-        )
+        (cc.get(FILTER_PATIENTS_NAME), get_patients_parameters(parameters, cc))
     )
 
     return cohort_parameters
 
 
-def get_initial_flowchart(metadata: Metadata) -> List[Cohort]:
+def get_initial_flowchart(cc: CohortCollection) -> List[Cohort]:
     return [
-        metadata.get(EXTRACT_PATIENTS_NAME),
-        metadata.get(EXPOSURES_NAME),
-        metadata.get(FILTER_PATIENTS_NAME),
-        metadata.get(FRACTURES_NAME),
+        cc.get(EXTRACT_PATIENTS_NAME),
+        cc.get(EXPOSURES_NAME),
+        cc.get(FILTER_PATIENTS_NAME),
+        cc.get(FRACTURES_NAME),
     ]
 
 
 def add_additional_flowchart_steps(
     initial_flowchart,
     cohort_parameters_list: List[Tuple[Cohort, List[Parameter]]],
-    metadata: Metadata,
-) -> Tuple[List[Cohort], Metadata]:
-    new_metadata = metadata
+    cc: CohortCollection,
+) -> Tuple[List[Cohort], CohortCollection]:
+    new_metadata = cc
     for cohort, parameters in cohort_parameters_list:
         for parameter in parameters:
             new_cohort = parameter.filter(cohort)
+            get_logger().info(parameter.log())
+            get_logger().info(
+                "Involved subjects number {}".format(new_cohort.subjects.count())
+            )
             if parameter.change_input:
                 initial_flowchart.append(new_cohort)
                 new_metadata.add_cohort(new_cohort.name, new_cohort)
-                get_logger().info("Adding cohort {} to Flowchart".format(new_cohort.name))
+                get_logger().info(
+                    "Adding cohort {} to CohortFlow".format(new_cohort.name)
+                )
 
     return initial_flowchart, new_metadata
 
 
 def experience_to_flowchart_metadata(
-    metadata: Metadata, parameters: Dict
-) -> Tuple[Flowchart, Metadata]:
-    cohort_parameters_list = get_cohort_parameters_tuple_list(metadata, parameters)
-    initial_flowchart = get_initial_flowchart(metadata)
+    cc: CohortCollection, parameters: Dict
+) -> Tuple[CohortFlow, CohortCollection]:
+    cohort_parameters_list = get_cohort_parameters_tuple_list(cc, parameters)
+    initial_flowchart = get_initial_flowchart(cc)
     flowchart_steps, new_metadata = add_additional_flowchart_steps(
-        initial_flowchart, cohort_parameters_list, metadata
+        initial_flowchart, cohort_parameters_list, cc
     )
-    return Flowchart(initial_flowchart), new_metadata
+    return CohortFlow(initial_flowchart), new_metadata

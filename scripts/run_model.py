@@ -53,7 +53,7 @@ if __name__ == "__main__":
         record_every=1,
         print_every=10,
         tol=1e-5,
-        threads=15
+        threads=15,
     )
 
     print(
@@ -83,7 +83,7 @@ if __name__ == "__main__":
         record_every=1,
         print_every=10,
         tol=1e-5,
-        threads=10
+        threads=10,
     )
     print("Launching Bootstrap")
     coeffs_custom, ci = model_custom.fit(
@@ -94,4 +94,3 @@ if __name__ == "__main__":
     pd.DataFrame(ci).to_csv("ci.csv")
     print("Dumping the Mapping to Json formats")
     write_json(mapping, "mapping.json")
-

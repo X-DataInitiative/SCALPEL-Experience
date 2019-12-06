@@ -1,5 +1,5 @@
 import abc
-from src.exploration.core.cohort import Cohort
+from scalpel.core.cohort import Cohort
 
 
 class Parameter(abc.ABC):

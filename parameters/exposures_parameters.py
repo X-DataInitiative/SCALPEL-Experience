@@ -1,4 +1,4 @@
-from src.exploration.core.cohort import Cohort
+from scalpel.core.cohort import Cohort
 
 from parameters.parameter import Parameter
 
@@ -22,10 +22,10 @@ class ControlDrugsParameter(Parameter):
     def filter(self, cohort: Cohort) -> Cohort:
         if self.value:
             control_drugs_exposures = self.control_drugs.events.join(
-                cohort.subjects, "patientID", "inner"
+                cohort.subjects.select("patientID"), "patientID", "inner"
             )
             return Cohort(
-                cohort.name,
+                "{} with control drugs".format(cohort.name),
                 cohort.characteristics,
                 cohort.subjects,
                 cohort.events.union(control_drugs_exposures),

@@ -2,20 +2,25 @@ import pickle
 
 import numpy as np
 import pyspark.sql.functions as sf
-import pytz
-from src.exploration.core.cohort import Cohort
-from src.exploration.core.io import get_logger, get_spark_context, quiet_spark_logger
-from src.exploration.core.util import rename_df_columns
-from src.exploration.loaders import ConvSccsLoader
+from scalpel.core.cohort import Cohort
+from scalpel.core.cohort_collection import CohortCollection
+from scalpel.core.io import get_logger, quiet_spark_logger, \
+    get_sql_context
+from scalpel.core.util import rename_df_columns
+from scalpel.drivers.conv_sccs import ConvSccsFeatureDriver
 
-from parameters.experience import (get_exposures, get_fractures, get_subjects,
-                                   get_the_followup, read_metadata, read_parameters)
+from parameters.experience import (
+    get_exposures,
+    get_fractures,
+    get_subjects,
+    get_the_followup,
+    read_parameters,
+)
+from parameters.fall_parameters import STUDY_END, STUDY_START, AGE_REFERENCE_DATE
+
 
 BUCKET_ROUNDING = "ceil"
 RUN_CHECKS = True
-STUDY_START = pytz.datetime.datetime(2010, 1, 1, tzinfo=pytz.UTC)
-STUDY_END = pytz.datetime.datetime(2015, 1, 1, 23, 59, 59, tzinfo=pytz.UTC)
-AGE_REFERENCE_DATE = pytz.datetime.datetime(2017, 1, 1, tzinfo=pytz.UTC)
 AGE_GROUPS = [0, 64, 67, 70, 73, 76, 79, 80, np.Inf]
 
 
@@ -45,9 +50,9 @@ def delete_prevalent(outcomes: Cohort, followup: Cohort) -> Cohort:
 
 
 def main():
-    sqlContext = get_spark_context()
-    quiet_spark_logger(sqlContext.sparkSession)
-    sqlContext.sparkSession.conf.set("spark.sql.session.timeZone", "UTC")
+    sql_context = get_sql_context()
+    quiet_spark_logger(sql_context.sparkSession)
+    sql_context.sparkSession.conf.set("spark.sql.session.timeZone", "UTC")
     logger = get_logger()
 
     valid_start = sf.col("start").between(STUDY_START, STUDY_END)
@@ -55,31 +60,37 @@ def main():
     logger.info("Reading parameters")
     parameters = read_parameters()
     logger.info("Reading metadata")
-    json_file_path = parameters["path"]
-    md = read_metadata(json_file_path)
+    md = CohortCollection.from_json(parameters["path"])
 
     clean_outcomes = md.get("fractures").events.where(valid_start)
-    md = md.add_cohort("fractures", Cohort("fractures", "Subjects with fractures", clean_outcomes.select("patientID").distinct(), clean_outcomes))
+    md = md.add_cohort(
+        "fractures",
+        Cohort(
+            "fractures",
+            "Subjects with fractures",
+            clean_outcomes.select("patientID").distinct(),
+            clean_outcomes,
+        ),
+    )
 
     logger.info("Add age information to patients")
-    md.add_subjects_information("omit_all", AGE_REFERENCE_DATE)
 
-    base_cohort = get_subjects(md, parameters)
-    outcomes = get_fractures(md, parameters)
-    followup = get_the_followup(md, parameters)
-    exposures = get_exposures(md, parameters)
+    base_cohort = get_subjects(md, parameters).cache()
+    outcomes = get_fractures(md, parameters).cache()
+    followup = get_the_followup(md, parameters).cache()
+    exposures = md.get("interactions")
 
-    min_base = base_cohort.intersect_all([followup, exposures, outcomes])
+    min_base = base_cohort.intersect_all([followup, exposures, outcomes]).cache()
     min_base.add_subject_information(base_cohort, "omit_all")
 
-    min_exp = exposures.intersection(min_base)
-    min_out = outcomes.intersection(min_base)
-    min_fup = followup.intersection(min_base)
+    min_exp = exposures.intersection(min_base).cache()
+    min_out = outcomes.intersection(min_base).cache()
+    min_fup = followup.intersection(min_base).cache()
 
     logger.debug("Min base subject count {}".format(min_base.subjects.count()))
 
     min_incident_out = delete_prevalent(min_out, min_fup)
-    loader = ConvSccsLoader(
+    loader = ConvSccsFeatureDriver(
         min_base,
         min_fup,
         min_exp,

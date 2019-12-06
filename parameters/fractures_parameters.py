@@ -1,7 +1,7 @@
 import pyspark.sql.functions as sf
 from pyspark.sql import Window
 
-from src.exploration.core.cohort import Cohort
+from scalpel.core.cohort import Cohort
 
 from parameters.parameter import Parameter
 
@@ -54,7 +54,6 @@ class FractureSeverityParameter(Parameter):
         if self.value == "all":
             return fractures
         else:
-            self.change_input = True
             events = fractures.events.where(sf.col("weight").isin(self.value))
             if events.count() == 0:
                 raise ValueError(
@@ -78,7 +77,7 @@ class MultiFracturedParameter(Parameter):
 
     @change_input.setter
     def change_input(self, value):
-        self._change_input = not value
+        self._change_input = (value == False)
 
     def log(self) -> str:
         return "Keep multi fractured: {}".format(self.value)
@@ -87,7 +86,6 @@ class MultiFracturedParameter(Parameter):
         if self.value:
             return cohort
         else:
-            self.change_input = True
             fractured_once_per_admission = (
                 cohort.events.groupBy(["patientID", "start"])
                 .count()
@@ -115,7 +113,7 @@ class MultiAdmissionParameter(Parameter):
 
     @change_input.setter
     def change_input(self, value):
-        self._change_input = not value
+        self._change_input = (value == False)
 
     def log(self) -> str:
         return "Keep multi admitted: {}".format(self.value)
@@ -124,7 +122,6 @@ class MultiAdmissionParameter(Parameter):
         if self.value:
             return cohort
         else:
-            self.change_input = True
             admitted_once = (
                 cohort.events.groupBy(["patientID", "start"])
                 .count()

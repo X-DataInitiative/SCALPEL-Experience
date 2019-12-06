@@ -4,14 +4,24 @@ import os
 from itertools import product
 
 
-def config_file_generator(petit_condtionnement, grand_condtionnement, start_delay, end_delay) -> str:
+def config_file_generator(
+    petit_condtionnement,
+    grand_condtionnement,
+    start_delay,
+    end_delay,
+    interaction_level,
+) -> str:
     now = datetime.datetime.now()
     date = now.strftime("%Y-%m-%d")
-    hdfs_output = "PC={}-GC={}-SD={}-ED={}".format(
-        petit_condtionnement, grand_condtionnement, start_delay, end_delay
+    hdfs_output = "PC={}-GC={}-SD={}-ED={}-IL={}".format(
+        petit_condtionnement,
+        grand_condtionnement,
+        start_delay,
+        end_delay,
+        interaction_level,
     )
     return """
-output.root = "/shared/Observapur/staging/CNAM-339/{}/{}"
+output.root = "/shared/Observapur/staging/CNAM-423/{}/{}"
 output.save_mode = "overwrite"
 
 exposures.end_threshold_ngc: {} days
@@ -23,8 +33,16 @@ patients.start_gap_in_months: 12
 
 outcomes.fall_frame: 4 months
 
+interactions.level: {}
+
 sites.sites: ["BodySites"]""".format(
-        date, hdfs_output, petit_condtionnement, grand_condtionnement, start_delay, end_delay
+        date,
+        hdfs_output,
+        petit_condtionnement,
+        grand_condtionnement,
+        start_delay,
+        end_delay,
+        interaction_level,
     )
 
 
@@ -44,6 +62,7 @@ def generate_parameters(
     keep_multi_admitted=[True],
     epileptics_controls=[False],
     drugs_controls=[False],
+    interaction_levels=[2],
 ):
     for (
         path,
@@ -61,6 +80,7 @@ def generate_parameters(
         kma,
         ec,
         dc,
+        il,
     ) in product(
         json_file_path,
         gender_list,
@@ -77,13 +97,15 @@ def generate_parameters(
         keep_multi_admitted,
         epileptics_controls,
         drugs_controls,
+        interaction_levels,
     ):
         directory_name = (
-            "gender={}-bucketsize={}-lag={}-site={}"
-            "-PC={}-GC={}-SD={}-ED={}"
-            "-FractureSeverity={}"
-            "-KeepElderly={}-KeepMultiFractured={}-"
-            "KeepMultiAdmitted={}-Epileptics={}-Drugs={}"
+            "G={}-BS={}-L={}-S={}-"
+            "PC={}-GC={}-SD={}-ED={}-"
+            "FS={}-"
+            "KE={}-KMF={}-"
+            "KMA={}-EC={}-DC={}-"
+            "IL={}"
         ).format(
             gender,
             bucket,
@@ -103,6 +125,7 @@ def generate_parameters(
             kma,
             ec,
             dc,
+            il,
         )
         os.mkdir(directory_name)
         parameters = {
@@ -121,6 +144,7 @@ def generate_parameters(
             "keep_multi_admitted": kma,
             "epileptics_control": ec,
             "drugs_control": dc,
+            "interaction_level": il,
         }
         with open(
             os.path.join(directory_name, "parameters.json"), "w"
@@ -128,7 +152,7 @@ def generate_parameters(
             parameters_file.write(json.dumps(parameters))
 
         config_file = config_file_generator(
-            petit_condtionnement, grand_condtionnement, start_delay, end_delay
+            petit_condtionnement, grand_condtionnement, start_delay, end_delay, il
         )
         with open(os.path.join(directory_name, "fall.conf"), "w") as configuration_file:
             configuration_file.write(config_file)
@@ -137,4 +161,10 @@ def generate_parameters(
 if __name__ == "__main__":
     json_file_path = ["metadata_fall.json"]
 
-    generate_parameters(json_file_path, fracture_severities=[[3], [3, 2], [4], [3, 2, 4]])
+    generate_parameters(
+        json_file_path,
+        gender_list=["homme"],
+        sites=[["ColDuFemur"]],
+        fracture_severities=[[3]],
+        interaction_levels=[2],
+    )
