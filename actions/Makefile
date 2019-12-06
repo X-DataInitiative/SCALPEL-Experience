@@ -9,6 +9,7 @@ help:
 	@echo "extract-results - extract results to BDP out. (Shell)"
 	@echo "clean - delete all experiments. (Shell)"
 	@echo "build-scalpel-analysis - build SCALPEL-Analysis & put it under dist.(Shell)"
+	@echo "build-scalpel-extraction- build SCALPEL-Extraction & put it under dist. MUST HAVE SBT 0.13 installed & Internet.(Shell)"
 
 all: default
 
@@ -37,3 +38,6 @@ clean:
 
 build-scalpel-analysis:
 	cd ../SCALPEL-Analysis && zip -r ../dist/scalpel.zip scalpel
+
+build-scalpel-extraction:
+	cd ../SCALPEL-Extraction && sbt 'set assemblyOutputPath in assembly := new File("../dist/extraction.jar")' assembly
