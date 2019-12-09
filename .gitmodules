@@ -1,0 +1,6 @@
+[submodule "SCALPEL-Analysis"]
+	path = SCALPEL-Analysis
+	url = git@github.com:X-DataInitiative/SCALPEL-Analysis.git
+[submodule "SCALPEL-Extraction"]
+	path = SCALPEL-Extraction
+	url = git@github.com:X-DataInitiative/SCALPEL-Extraction.git

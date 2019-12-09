@@ -10,5 +10,5 @@ runCommand "spark-submit \
 --conf spark.executor.cores=4 \
 --conf spark.driver.maxResultSize=20G \
 --conf spark.sql.broadcastTimeout=1200 \
---py-files ../../dist/exploration.zip,../../dist/parameters.zip \
+--py-files ../../dist/scalpel.zip,../../dist/parameters.zip \
 ../../scripts/stats.py"
