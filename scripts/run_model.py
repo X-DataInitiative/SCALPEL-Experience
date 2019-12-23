@@ -6,6 +6,13 @@ import pandas as pd
 from tick.survival.sccs import StreamConvSCCS
 
 
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
+
+
 def read_parameters() -> dict:
     with open("parameters.json", "r") as parameters_file:
         parameters_json = "".join(parameters_file.readlines())
@@ -22,6 +29,16 @@ def write_json(obj, filepath):
         json.dump(obj, file)
 
 
+# TODO: refactor this
+def get_lag(event_value):
+    lag = 29 # default value
+    if event_value[:4] == "pre-":
+        lag = 13
+    elif event_value[0] == '[':
+        lag = None
+    return lag
+
+
 if __name__ == "__main__":
     print("Read inputs")
     features = unpickle("features")
@@ -34,9 +51,14 @@ if __name__ == "__main__":
     n_mols = len(mapping) - n_age_groups
 
     parameters = read_parameters()
-    mols_lags = parameters["lag"]
+    mols_lags = parameters["lag"] - 15  # TODO: delay parameter
+    pre_exposures_lags = 14 - 1  # TODO: delay parameter
 
-    n_lags = np.repeat(mols_lags, n_mols)
+    n_lags = np.array([get_lag(val) for val in mapping if get_lag(val) is not None])
+
+    # n_lags = np.hstack([np.repeat(mols_lags, n_mols),
+    #                     np.repeat(pre_exposures_lags, n_mols)])
+
     penalized_features = np.arange(n_mols)
 
     features_wo_age = [f[:, :n_mols] for f in features]
@@ -84,6 +106,7 @@ if __name__ == "__main__":
         print_every=10,
         tol=1e-5,
         threads=10,
+        step=model.step
     )
     print("Launching Bootstrap")
     coeffs_custom, ci = model_custom.fit(
@@ -91,6 +114,9 @@ if __name__ == "__main__":
     )
     print("Saving bootstrap results")
     pd.DataFrame(coeffs_custom).to_csv("coefficients_custom.csv")
-    pd.DataFrame(ci).to_csv("ci.csv")
+    # pd.DataFrame(ci).to_csv("ci.csv")
+    with open("ci.json", "w") as file:
+        json.dump(ci, file, cls=NumpyEncoder)
+
     print("Dumping the Mapping to Json formats")
     write_json(mapping, "mapping.json")

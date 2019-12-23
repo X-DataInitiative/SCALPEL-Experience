@@ -41,9 +41,8 @@ def read_parameters() -> dict:
 
 
 def read_cohort_collection(file_path: str) -> CohortCollection:
-    with open(file_path, "r") as metadata_file:
-        metadata_txt = "".join(metadata_file.readlines())
-        return CohortCollection.from_json(metadata_txt)
+    # TODO: Warning DEPRECATED, please use CohortCollection.from_json(file_path)
+    return CohortCollection.from_json(file_path)
 
 
 def apply_successive_parameters(cohort: Cohort, parameters: List[Parameter]) -> Cohort:
