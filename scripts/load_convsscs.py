@@ -5,7 +5,7 @@ import pyspark.sql.functions as sf
 from scalpel.core.cohort import Cohort
 from scalpel.core.cohort_collection import CohortCollection
 from scalpel.core.io import get_logger, quiet_spark_logger, \
-    get_sql_context
+    get_spark_context
 from scalpel.core.util import rename_df_columns
 from scalpel.drivers.conv_sccs import ConvSccsFeatureDriver
 
@@ -49,10 +49,37 @@ def delete_prevalent(outcomes: Cohort, followup: Cohort) -> Cohort:
     return outcomes.difference(prevalent_cases)
 
 
+def add_pre_exposures(exposures: Cohort, followup: Cohort, delay: int) -> Cohort:
+    pre_exposures_events = exposures.events
+    pre_exposures_events_cols = pre_exposures_events.columns
+    pre_exposures_events = pre_exposures_events.withColumnRenamed('start', 'old_start')
+    pre_exposures_events = pre_exposures_events.withColumnRenamed('value', 'old_value')
+    pre_exposures_events = pre_exposures_events.withColumn('start',
+                                                           sf.date_sub('old_start',
+                                                                       int(delay)))
+    pre_exposures_events = pre_exposures_events.withColumn('value',
+                                                           sf.concat(sf.lit('pre-'),
+                                                                     sf.col('old_value')
+                                                                     )
+                                                           )
+
+    fup_events = rename_df_columns(followup.events, prefix="fup_", keys=("patientID",))
+    pre_exposures_events = pre_exposures_events.join(fup_events, on="patientID")
+
+    is_valid = (sf.col("start") >= sf.col("fup_start")) & (
+            sf.col("start") <= sf.col("fup_end")
+    )
+    pre_exposures_events = pre_exposures_events.where(is_valid)\
+        .select(*pre_exposures_events_cols)
+
+    events = exposures.events.union(pre_exposures_events)
+    return Cohort("Exposures w/ pre-exposures", "", events.select('patientID').drop_duplicates(), events)
+
+
 def main():
-    sql_context = get_sql_context()
-    quiet_spark_logger(sql_context.sparkSession)
-    sql_context.sparkSession.conf.set("spark.sql.session.timeZone", "UTC")
+    spark_context = get_spark_context()
+    quiet_spark_logger(spark_context.sparkSession)
+    spark_context.sparkSession.conf.set("spark.sql.session.timeZone", "UTC")
     logger = get_logger()
 
     valid_start = sf.col("start").between(STUDY_START, STUDY_END)
@@ -78,7 +105,7 @@ def main():
     base_cohort = get_subjects(md, parameters).cache()
     outcomes = get_fractures(md, parameters).cache()
     followup = get_the_followup(md, parameters).cache()
-    exposures = md.get("interactions")
+    exposures = add_pre_exposures(get_exposures(md, parameters), followup, 15).cache()  # TODO: HERE, rerun DRUG CONTROL EXPERIMENT
 
     min_base = base_cohort.intersect_all([followup, exposures, outcomes]).cache()
     min_base.add_subject_information(base_cohort, "omit_all")

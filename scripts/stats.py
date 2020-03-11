@@ -1,11 +1,12 @@
 import matplotlib
+matplotlib.use("Agg")
 import json
 
 import pyspark.sql.functions as sf
 import pytz
 
 from scalpel.core.cohort import Cohort
-from scalpel.core.io import get_logger, quiet_spark_logger, get_sql_context
+from scalpel.core.io import get_logger, quiet_spark_logger, get_spark_context
 from scalpel.core.cohort_collection import CohortCollection
 from scalpel.core.util import rename_df_columns
 import pandas as pd
@@ -18,8 +19,6 @@ from parameters.experience import (
     experience_to_flowchart_metadata,
 )
 from parameters.fall_parameters import STUDY_END, STUDY_START, AGE_REFERENCE_DATE
-
-matplotlib.use("Agg")
 
 
 def delete_invalid_events(
@@ -59,7 +58,7 @@ def clean_metadata(
     cc: CohortCollection, study_start: pytz.datetime, study_end: pytz.datetime
 ) -> CohortCollection:
     clean_cc = {}
-    cohorts = cc.cohorts_names()
+    cohorts = cc.cohorts_names
     for k in cohorts:
         v = cc.get(k)
         if v.events is not None:
@@ -273,24 +272,19 @@ fracture_logs = "fracture_logs.json"
 # END PARAMETERS
 
 if __name__ == "__main__":
-    sqlContext = get_sql_context()
+    sqlContext = get_spark_context()
     quiet_spark_logger(sqlContext.sparkSession)
     sqlContext.sparkSession.conf.set("spark.sql.session.timeZone", "UTC")
 
-    old_md = clean_metadata(
-        read_cohort_collection(metadata_path), STUDY_START, STUDY_END
-    )
+    raw_md = clean_metadata(
+        CohortCollection.from_json(metadata_path), STUDY_START, STUDY_END
+    )  # TODO: deprecate read_cohort_collection
 
     logger = get_logger()
-    buffer = old_md.get("fractures").events
-    buffer = buffer.withColumnRenamed("value", "temp")
-    buffer = buffer.withColumnRenamed("groupID", "value")
-    buffer = buffer.withColumnRenamed("temp", "groupID")
-    old_md.get("fractures").events = buffer
-    cache_metadata(old_md)
+    cache_metadata(raw_md)
 
     logger.info("Flowchart preparation.")
-    flow, md = experience_to_flowchart_metadata(old_md, read_parameters())
+    flow, md = experience_to_flowchart_metadata(raw_md, read_parameters())
     md.add_subjects_information("omit_all", AGE_REFERENCE_DATE)
     cache_metadata(md)
 

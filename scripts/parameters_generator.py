@@ -163,8 +163,6 @@ if __name__ == "__main__":
 
     generate_parameters(
         json_file_path,
-        gender_list=["homme"],
-        sites=[["ColDuFemur"]],
-        fracture_severities=[[3]],
+        sites=["all", ["ColDuFemur"]],
         interaction_levels=[2],
     )
