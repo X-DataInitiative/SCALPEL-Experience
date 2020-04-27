@@ -6,5 +6,5 @@ EXPOSURES_NAME = "exposures"
 EXTRACT_PATIENTS_NAME = "extract_patients"
 FILTER_PATIENTS_NAME = "filter_patients"
 FRACTURES_NAME = "fractures"
-STUDY_START = pytz.datetime.datetime(2014, 12, 31, 23, 59, 59, tzinfo=pytz.UTC)
+STUDY_START = pytz.datetime.datetime(2013, 12, 31, 23, 59, 59, tzinfo=pytz.UTC)
 STUDY_END = pytz.datetime.datetime(2018, 1, 2, tzinfo=pytz.UTC)

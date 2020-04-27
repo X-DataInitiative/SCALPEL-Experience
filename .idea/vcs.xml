@@ -4,5 +4,7 @@
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/SCALPEL-Analysis" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/SCALPEL-Extraction" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_party/sccs" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_party/sccs/lib/third_party/cereal" vcs="Git" />
   </component>
 </project>
