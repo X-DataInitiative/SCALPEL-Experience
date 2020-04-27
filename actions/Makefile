@@ -20,6 +20,9 @@ default: parameters-generator submit-extract submit-transform submit-stats submi
 parameters-generator:
 	cd ../experiments && python ../scripts/parameters_generator.py
 
+extract-results:
+	zsh extract_results.zsh
+
 submit-extract:
 	cd ../experiments && zsh ../actions/submit_extract.zsh
 
@@ -36,7 +39,7 @@ run-models:
 	cd ../experiments && zsh ../actions/run_model.zsh
 
 clean:
-	rm -rf ../experiments
+	rm -rf ../experiments/*
 
 build-scalpel-analysis:
 	cd ../SCALPEL-Analysis && zip -r ../dist/scalpel.zip scalpel

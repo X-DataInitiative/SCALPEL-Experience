@@ -5,23 +5,25 @@ from itertools import product
 
 
 def config_file_generator(
-    petit_condtionnement,
-    grand_condtionnement,
+    petit_conditionnement,
+    grand_conditionnement,
     start_delay,
     end_delay,
     interaction_level,
+    interaction_min_duration
 ) -> str:
     now = datetime.datetime.now()
     date = now.strftime("%Y-%m-%d")
-    hdfs_output = "PC={}-GC={}-SD={}-ED={}-IL={}".format(
-        petit_condtionnement,
-        grand_condtionnement,
+    hdfs_output = "PC={}-GC={}-SD={}-ED={}-IL={}-IMD={}".format(
+        petit_conditionnement,
+        grand_conditionnement,
         start_delay,
         end_delay,
         interaction_level,
+        interaction_min_duration
     )
     return """
-output.root = "/shared/Observapur/staging/CNAM-423/{}/{}"
+output.root = "/shared/FALL/staging/featuring/CNAM-model-003-min-duration/{}/{}"
 output.save_mode = "overwrite"
 
 exposures.end_threshold_ngc: {} days
@@ -34,15 +36,17 @@ patients.start_gap_in_months: 12
 outcomes.fall_frame: 4 months
 
 interactions.level: {}
+interactions.minimum_duration: {} days
 
 sites.sites: ["BodySites"]""".format(
         date,
         hdfs_output,
-        petit_condtionnement,
-        grand_condtionnement,
+        petit_conditionnement,
+        grand_conditionnement,
         start_delay,
         end_delay,
         interaction_level,
+        interaction_min_duration
     )
 
 
@@ -63,6 +67,8 @@ def generate_parameters(
     epileptics_controls=[False],
     drugs_controls=[False],
     interaction_levels=[2],
+    interaction_min_durations=[30],
+    exposure_types = ["exposures"]
 ):
     for (
         path,
@@ -81,6 +87,8 @@ def generate_parameters(
         ec,
         dc,
         il,
+        imd,
+        et
     ) in product(
         json_file_path,
         gender_list,
@@ -98,6 +106,8 @@ def generate_parameters(
         epileptics_controls,
         drugs_controls,
         interaction_levels,
+        interaction_min_durations,
+        exposure_types
     ):
         directory_name = (
             "G={}-BS={}-L={}-S={}-"
@@ -105,7 +115,7 @@ def generate_parameters(
             "FS={}-"
             "KE={}-KMF={}-"
             "KMA={}-EC={}-DC={}-"
-            "IL={}"
+            "IL={}-IMD={}"
         ).format(
             gender,
             bucket,
@@ -126,6 +136,7 @@ def generate_parameters(
             ec,
             dc,
             il,
+            imd
         )
         os.mkdir(directory_name)
         parameters = {
@@ -145,6 +156,7 @@ def generate_parameters(
             "epileptics_control": ec,
             "drugs_control": dc,
             "interaction_level": il,
+            "exposure_type": et,
         }
         with open(
             os.path.join(directory_name, "parameters.json"), "w"
@@ -152,7 +164,7 @@ def generate_parameters(
             parameters_file.write(json.dumps(parameters))
 
         config_file = config_file_generator(
-            petit_condtionnement, grand_condtionnement, start_delay, end_delay, il
+            petit_condtionnement, grand_condtionnement, start_delay, end_delay, il, imd
         )
         with open(os.path.join(directory_name, "fall.conf"), "w") as configuration_file:
             configuration_file.write(config_file)
@@ -162,7 +174,30 @@ if __name__ == "__main__":
     json_file_path = ["metadata_fall.json"]
 
     generate_parameters(
-        json_file_path,
-        sites=["all", ["ColDuFemur"]],
-        interaction_levels=[2],
+        json_file_path, interaction_min_durations=[0, 15, 30], exposure_types=["interactions"]
     )
+
+    # # Fracture unique
+    # generate_parameters(
+    #     json_file_path,
+    #     keep_multi_admitted=[False],
+    #     keep_multi_fractured=[False, True]
+    # )
+    #
+    # # Les jeunes vieux
+    # generate_parameters(json_file_path, keep_elderly=[False])
+    #
+    # # Drugs control
+    # generate_parameters(json_file_path, drugs_controls=[True])
+    #
+    # # Epileptics
+    # generate_parameters(json_file_path, epileptics_controls=[True])
+    #
+    # # Le sexe
+    # generate_parameters(json_file_path, gender_list=["femme", "homme"])
+    #
+    # # Severites
+    # generate_parameters(json_file_path, fracture_severities=[[1], [1, 2], [3]])
+    #
+    # # Sites
+    # generate_parameters(json_file_path, sites=[["ColDuFemur"], ["Poignet"], ["Rachis"]])
